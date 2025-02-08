@@ -1,0 +1,504 @@
+<!--
+
+-->
+<head>
+<title>
+Interferogram Simulator - see how various things affect an igram
+</title>
+
+<style>
+.slide 
+{
+width:400px;
+}
+</style>
+
+</head>
+<h2>Interferogram Simulator - see how various things affect an igram</h2>
+
+(ver 0.2)<br> 
+
+Simulated wavefronts when testing mirrors.  The unit "wave" below is the standard weighting for zernike terms.  Same weighting as with DFTFringe.  DFTFringe has an igram simulator built in that can do everything mine can do and much more.  But mine is faster.  Fast enough that you can use sliders and watch things change in real time.  It's okay to enter negative zernike terms or positive S.A.
+<p>
+F ratio of mirror under test:
+<input type='text' size=3 value=3.1 onKeyUp=update(true) id='idFnum'>
+&nbsp;&nbsp;&nbsp;&nbsp;
+
+Diameter of mirror (inches - sorry)
+<input type='text' size=3 value=24 onKeyUp=update(true) id='idDiam'>
+&nbsp;&nbsp;&nbsp;&nbsp;
+
+conic constant (-1 for parabolic mirror)
+<input type='text' size=3 value=-1 onKeyUp=update(true) id='idConicConst'>
+&nbsp;&nbsp;&nbsp;&nbsp;
+
+Laser Wavelength (nm)
+<input type='text' size=3 value=655 onKeyUp=update(true) id='idWavelength'>
+
+<p>
+<div style='display: inline-block; width:380px'>
+Z8 term (S.A.): <span id='idz8'></span> waves<span id='idComputed'> computed from above</span>
+</div>
+<input type="range" id="slide_sa" class="slide" min="0" max="1000" value="7" step="1" oninput=slide_change()>
+<br>
+
+X Tilt: 
+<input type='text' size=3 value=20 onKeyUp=update() id='idTilt'> waves
+<input type="range" id="slide_tilt" class="slide" min="0" max="1000" value="7" step="1" oninput=slide_change()>
+<br>
+
+Defocus:
+<input type='text' size=3 value=0 onKeyUp=update() id='idDefocus'> waves
+<input type="range" id="slide_def" class="slide" min="0" max="1000" value="7" step="1" oninput=slide_change()>
+<br>
+
+Astigmatism:
+<input type='text' size=3 value=0 onKeyUp=update() id='idXAstig'> waves
+<input type="range" id="slide_astig" class="slide" min="0" max="1000" value="7" step="1" oninput=slide_change()>
+<br>
+<span id='idslope'></span> <span id='idSlopeControl'><label><input type='checkbox' id='chkShowSlope' onchange='update()'>Show location</label></span>
+<br>
+
+
+
+<span id='idlogging'>error</span>
+
+<br>
+<input type="radio" name="resolution" value="600" onChange=radio_change() CHECKED>600 pixels
+<input type="radio" name="resolution" value="1000" onChange=radio_change()>1000 pixels
+<input type="radio" name="resolution" value="2000" onChange=radio_change()>2000 pixels
+<br>
+
+
+<canvas id='idCanvas' width="610" height="610" '></canvas>
+<br>
+<p xmlns:cc="http://creativecommons.org/ns#" >This work by <a rel="cc:attributionURL dct:creator" property="cc:attributionName" href="http://gr5.org">gr5</a> is licensed under <a href="http://creativecommons.org/licenses/by/4.0/?ref=chooser-v1" target="_blank" rel="license noopener noreferrer" style="display:inline-block;">CC BY 4.0<img style="height:22px!important;margin-left:3px;vertical-align:text-bottom;" src="https://mirrors.creativecommons.org/presskit/icons/cc.svg?ref=chooser-v1"><img style="height:22px!important;margin-left:3px;vertical-align:text-bottom;" src="https://mirrors.creativecommons.org/presskit/icons/by.svg?ref=chooser-v1"></a></p>
+
+<script>
+
+var pixels=600;
+var canvas_size=610;
+var t_can = document.getElementById('idCanvas');
+var ctx = t_can.getContext('2d');
+var id = ctx.createImageData(pixels,pixels);
+var pix = id.data;
+var bSA_calculated=true; // when true the SA value is calculated from the 4 inputs above.  When false, the slider was used to override
+
+
+
+//
+// create an array called "lookup", used by col() (color), that will do a very fast sine wave transformation - much faster than Math.sin()
+//
+var steps = 400;
+var lookup = new Array(steps+1);
+for(var i=0; i<steps; i++)
+  lookup[i] = (Math.sin( (i-steps/2)/(steps/2)*3.1415926/2)+1)*127;
+lookup[steps]=255; // takes care of almost impossible case where input is 1
+// col() converts x which is 0 to 1 into an output from 0 to 255 on a sine curve 
+function col(x)
+{
+  return lookup[Math.floor(x*steps)];
+}
+
+
+class logRange
+{
+
+   constructor(_min, _max, _sliderMax, idText, idSlider, _bLinear)
+   {
+       // slider control must always start at 0
+       this.bNeg= (_max < 0);
+       
+       this.sliderMax = _sliderMax;
+       this.bLinear = (_bLinear==true); // convert null to false
+       if (_bLinear)
+       {
+         this.mini = _min;
+         this.maxi = _max;
+       }
+       else
+       {
+         this.mini = Math.log(Math.abs(_min));
+         this.maxi = Math.log(Math.abs(_max));
+       }
+       this.scale = this.sliderMax / (this.maxi - this.mini);
+       if (this.bLinear == false)
+         this.scale = Math.abs(this.scale);
+       this.t_txt = document.getElementById(idText);
+       this.t_slider = document.getElementById(idSlider);
+       this.bSpan = (idText=="idz8");
+       this.label = idText; // for debugging only
+       
+   }
+   
+   newmax(_max)
+   {
+       if (this.bLinear)
+       {
+         this.maxi = _max;
+       }
+       else
+       {
+         this.maxi = Math.log(Math.abs(_max));
+       }
+       this.scale = this.sliderMax / (this.maxi - this.mini);
+       if (this.bLinear == false)
+         this.scale = Math.abs(this.scale);       
+   }
+
+   toSlider(val)
+   {
+       if (val==0)return 0;
+       if (val < 0 && this.bNeg == false)return 0;
+       var x = Math.log(Math.abs(val));
+       if (this.bLinear) x = val;
+       x = x - this.mini;
+       x = x * this.scale;
+       x = Math.round(x);
+       if (x == 0) return 1;
+       if (x < 0) return 0;
+       if (x>this.sliderMax)
+         return this.sliderMax;
+       return x;
+   }
+   
+   toValue(i)
+   {
+       if (i==0)return 0;
+       var x = i / this.scale;
+       x = x + this.mini;
+       if (this.bLinear)
+           return x;
+       x = Math.exp(x);
+       if (this.bNeg)
+         return -x;
+       else
+         return x;
+   }
+   
+   getText()
+   {
+      if (this.bSpan)
+        return parseFloat(this.t_txt.innerHTML);
+      else
+        return parseFloat(this.t_txt.value);
+   }
+   
+   putText(str)
+   {
+      if (this.bSpan)
+        this.t_txt.innerHTML=str;
+      else
+        this.t_txt.value=str;
+   }
+   
+   handleSliderChange()
+   {
+       var current_text_val = this.getText();
+       var current_slider_val = this.t_slider.value;
+       if ( this.toSlider(current_text_val) == current_slider_val)
+          return false; // no change
+       var new_text = this.toValue(current_slider_val);
+       new_text = new_text.toFixed(2);
+       if (this.t_txt.value == new_text)
+          return false; // no change
+       this.putText(new_text);
+       if (this.bSpan)
+         bSA_calculated=false;
+       return true; // change
+   }
+
+   copyToSlider()
+   {
+       var current_text_val = this.getText();
+       this.t_slider.value = this.toSlider(current_text_val);
+   }
+}
+
+// create the slider translaters
+trans_tilt_slider = new logRange(.1,pixels/6,1000,'idTilt', 'slide_tilt');
+trans_def_slider = new logRange(.1,100,1000,'idDefocus', 'slide_def');
+trans_astig_slider = new logRange(.01,10,1000,'idXAstig', 'slide_astig');
+trans_sa_slider = new logRange(-.01,-Math.floor(pixels/33),1000,'idz8', 'slide_sa',true);
+
+
+function slide_change()
+{
+  var bChange = trans_tilt_slider.handleSliderChange();
+  bChange ||= trans_def_slider.handleSliderChange();
+  bChange ||= trans_astig_slider.handleSliderChange();
+  bChange ||= trans_sa_slider.handleSliderChange();
+  
+  if (bChange) update();
+}
+
+function radio_change()
+{
+    var new_pixels = pixels;
+    var radioButtons = document.getElementsByName("resolution");
+    for(var i = 0; i < radioButtons.length; i++)
+    {
+        if(radioButtons[i].checked == true)
+        {
+            new_pixels = parseInt(radioButtons[i].value);
+            break;
+        }
+    }
+    
+    if (new_pixels == pixels)
+       return;
+     
+    pixels = new_pixels;
+    canvas_size = pixels+10;    
+    // fix slider maximums
+    trans_tilt_slider.newmax(pixels/6);
+    trans_sa_slider.newmax(-Math.floor(pixels/33));
+    trans_tilt_slider.copyToSlider();
+    trans_sa_slider.copyToSlider();
+    
+    var can = document.getElementById('idCanvas');
+    can.width = canvas_size;
+    can.height = canvas_size;
+    
+    id = ctx.createImageData(pixels,pixels);
+    pix = id.data;    
+
+    update();
+}
+
+
+function calculated()
+{
+    // if z8/sa term is calculated then say so.  If it isn't put up a button or something
+    // so they can go back
+    if (bSA_calculated)
+      document.getElementById('idComputed').innerHTML=" computed from above";
+    else
+      document.getElementById('idComputed').innerHTML=" <a href='javascript:doCalc()'>click here to use above info</a>";
+    
+}
+
+function doCalc()
+{
+    bSA_calculated = true;
+    update();
+}
+
+function update(bSaInputChange)
+{
+    var startTime = new Date();
+
+    
+    if (bSaInputChange)
+        bSA_calculated = true;
+
+    var t = document.getElementById('idlogging');
+    //t.innerHTML = parseInt(t.innerHTML) + 1;
+    //for(var k = 0; k<=1.04; k+=0.03)
+    //  t.innerHTML += " "+col(k);
+
+    //document.getElementById('idError').innerHTML="";
+
+    calculated(); // update gui to show if z8 term is calculated or from slider
+    
+    // get user inputs
+    var fnum = parseFloat(document.getElementById('idFnum').value);
+    var diam = parseFloat(document.getElementById('idDiam').value)*25.4;
+    var cc = parseFloat(document.getElementById('idConicConst').value);
+    var wl = parseFloat(document.getElementById('idWavelength').value);
+    var z8 = cc*(diam/(wl/1000000))/(3072*fnum*fnum*fnum);
+    var tilt = parseFloat(document.getElementById('idTilt').value);
+    var defocus = parseFloat(document.getElementById('idDefocus').value);
+    var astig = parseFloat(document.getElementById('idXAstig').value);
+    
+    var rgb = nmToRGB(wl);
+    var red = rgb[0];
+    var green = rgb[1];
+    var blue = rgb[2];
+
+    
+    if (bSA_calculated)
+      document.getElementById('idz8').innerHTML = z8.toFixed(2);
+    else
+      z8 = parseFloat(document.getElementById('idz8').innerHTML)
+
+    // copy to sliders
+    trans_tilt_slider.copyToSlider();
+    trans_def_slider.copyToSlider();
+    trans_astig_slider.copyToSlider();
+    trans_sa_slider.copyToSlider();
+
+    
+    var BB=t_can.getBoundingClientRect();
+    offsetX=BB.left;
+    offsetY=BB.top;
+    
+    // fill background color as black    
+    ctx.fillStyle = 'rgb('+red*80+','+green*80+','+blue*80+')';
+    ctx.fillRect(0, 0, canvas_size-1, canvas_size-1);
+    ctx.fillStyle = 'rgb(200,200,200)';
+    
+    // create sinwave shortcut
+
+    // loop through every pixel
+    var c_z8 = z8;//Math.sqrt(5);
+    var c_tilt = tilt;
+    var c_def = defocus;//Math.sqrt(3);
+    var c_astig = astig;//astig*Math.sqrt(6);
+    var pixels2 = pixels/2;
+    
+    
+    pix[4*pixels*pixels-1]=255; // thought this might save time as it might create the array all at once?
+    /*pix[1]=0;
+    pix[2]=0;
+    pix[3]=255;*/
+    var img_ind=0;
+    
+    var xyinc=1/pixels2;
+    var xunit= -1 - xyinc; // these go from -1 to +1
+    var yunit= -1 - xyinc;
+    var xx=0;
+    var yy=0;
+    var z=0;
+    
+    for(var y=0; y<pixels; y++)
+    {
+      yunit += xyinc;
+      xunit= -1 - xyinc;
+      yy = yunit*yunit;
+      for(var x=0; x<pixels; x++)
+      {
+         xunit += xyinc;
+         
+         xx = xunit*xunit;
+         r2 = xx + yy;
+         if (r2 > 1)
+         {
+           //outside unit circle
+           pix[img_ind++]=red*80;
+           pix[img_ind++]=green*80;
+           pix[img_ind++]=blue*80;
+           pix[img_ind++]=255;         
+           continue; 
+         }
+         r4 = r2*r2;
+         z = c_z8*(6*(r4-r2)+1) + // z8 S.A.
+             c_tilt*xunit +          // xtilt
+            c_def*(2*r2-1) +     // defocus
+            c_astig*xx - c_astig*yy;          // astig
+             
+         // z is already in waves  
+         // z=0,1,2 should be black and z=0.5 1.5 etc should be brightest
+         z = 2*Math.abs(.5 - (z-Math.floor(z))); // now ranges from 0 to 1 where 1 is brightest
+         
+         pix[img_ind++]=col(z)*red;
+         pix[img_ind++]=col(z)*green;
+         pix[img_ind++]=col(z)*blue;
+         pix[img_ind++]=255;         
+      }
+    }
+    ctx.putImageData(id,4,4);
+    t.innerHTML="time: "+ ((new Date()) - startTime).toFixed(0) + " ms";
+    
+    // now find highest slope - look only along the X axis and only check X slope
+    var maxSlope=0;
+    var maxSlopePixel=0;
+    var slope=0;
+    xunit = -1 - xyinc;
+    for (var xp=0; xp<pixels; xp++)
+    {
+        xunit += xyinc;
+        var x = xunit;
+        if (Math.abs(xunit) > 1) continue; // only check within unit circle
+        var x3 = x*x*x;
+        
+        slope = c_z8*6*(4*x3-2*x) + c_tilt + c_def*4*x + c_astig*2*x;
+        
+        if (Math.abs(slope) > Math.abs(maxSlope))
+        {
+            maxSlope = slope;
+            maxSlopePixel=xp;
+        }
+    }
+    
+    // maxSlope is now in waves per unit circle radius
+    maxSlope = maxSlope/(pixels/2);  // now in waves per pixel
+    
+    var ppf = Math.abs(1/maxSlope);
+    
+    var ts = document.getElementById('idslope');
+    
+    if (Math.sign(defocus) * Math.sign(astig) < 0 ||
+       Math.abs(astig) > 2)
+    {
+        // hide "closest fringes" stuff - as the closest fringe is likely not along the X axis in these conditions
+        ts.style.display="none";
+        document.getElementById('idSlopeControl').style.display='none';
+    }
+    else
+    {
+        ts.style.display="";
+        document.getElementById('idSlopeControl').style.display='';
+
+        ts.innerHTML="Closest fringes: "+ppf.toFixed(2)+" pixels per fringe";
+        
+        if (ppf < 3 || ppf < pixels/360)
+            ts.innerHTML="<font color='red'><b>"+ts.innerHTML+" (maybe add defocus?)</b></font>";
+         
+        if (ppf < pixels/360 && pixels > 720)
+          ts.innerHTML += " (lowest I've ever done at this resolution: "+
+            (pixels/360).toFixed(1);
+            
+        if (document.getElementById('chkShowSlope').checked)
+        {
+            // show a circle around the spot
+            ctx.strokeStyle="rgb(150,150,150)";
+            ctx.lineWidth=3;
+            ctx.beginPath();
+            ctx.arc(maxSlopePixel+4,4+pixels/2,pixels/30,0,Math.PI*2,true);//x, y, radius, startAngle, endAngle, counterclockwise)
+            ctx.stroke();
+        }
+    }
+}
+
+function nmToRGB(wavelength)
+{
+
+  if((wavelength < 440)){
+    red = 0;
+    green = 0.0;
+    blue = 1.0;
+  }else if((wavelength >= 440) && (wavelength<490)){
+    red = 0.0;
+    green = (wavelength - 440) / (490 - 440);
+    blue = 1.0;
+  }else if((wavelength >= 490) && (wavelength<510)){
+    red = 0.0;
+    green = 1.0;
+    blue = -(wavelength - 510) / (510 - 490);
+  }else if((wavelength >= 510) && (wavelength<580)){
+    red = (wavelength - 510) / (580 - 510);
+    green = 1.0;
+    blue = 0.0;
+  }else if((wavelength >= 580) && (wavelength<645)){
+    red = 1.0;
+    green = -(wavelength - 645) / (645 - 580);
+    blue = 0.0;
+  }else if((wavelength >= 645) && (wavelength<781)){
+    red = 1.0;
+    green = 0.0;
+    blue = 0.0;
+  }else{
+    red = 1.0;
+    green = 0.0;
+    blue = 0.0;
+  };
+  return [red,green,blue];
+  //return "rgb("+red+","+green+","+blue+")";
+  
+}
+
+update();
+</script>
+
+

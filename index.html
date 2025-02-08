@@ -1,0 +1,388 @@
+<!DOCTYPE HTML>
+
+<style>
+    html {
+        font-size: 100%;
+    }
+
+    body {
+        font-size: 1em;
+        text-size-adjust: none;
+        -webkit-text-size-adjust: none;        
+    }
+    
+    * {
+
+        font-family: -apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    }
+    
+    .smaller {
+        font-size:0.7em;
+    }
+    
+    @media screen and (max-width: 992px) {
+        body {
+            /* font-size: 2.5vh; */
+            font-size: 2em;
+        }
+        
+        input { font-size:1em;}
+    }    
+</style>
+
+<center>
+
+<table><tr><td>
+    <a href='beams_big.png'><img src='beams_small.png' width = 350></a>
+</td></tr><tr><td>
+    <center>
+    <i class='smaller'>
+        Click image to zoom in
+    </i>
+    </center>
+</td></tr></table>
+
+<h1>Bath Interferometer for under $150</h1>
+</center>
+A Bath Interferometer combined with free software can allow you to test your telescope mirror 10x more accurately and much faster than a foucault or knife edge test and with less knowledge needed to interpret the results.
+I plan to improve this page often.  The first thing I want to point you to is my store where you can get an entire interferometer kit or order just the portions you need (e.g. just a splitter cube).<br>
+
+
+<p><br>
+
+
+<table>
+<tr>
+<th colspan=2><h2><a href="https://thegr5store.com/wp/">Bath Interferometer Kit($40 to $195)</a></h2></th>
+
+<tr>
+<td style='padding:10px 10px 10px 10px'>
+  <a href="https://thegr5store.com/wp/">
+    <img src='bath3.png' width=200>
+    <img src='bath4.png' width=200>
+  </a>
+</td>
+
+
+</tr>
+</table>
+</a>
+
+ <a href="../xyz/">Click here for assembly instructions</a>
+<p>
+
+
+
+<p><br>
+<h2>Interferometer</h2>
+3d printable files for the interferometer are here: <a href='https://www.youmagine.com/designs/bath-interferometer'>Interferometer design</a>
+<p>
+Dale Eason designed both the interferometer and the XYZ table and then I have made small changes over the years including changing this design slightly to fit M3 screws so all the screws are the same.  If you have a 3d printer, feel free to contact me for absolute latest STL files.  I update thingiverse occasionally with minor improvements.
+<!-- email script start -->
+<SCRIPT type="text/javascript">
+function HiddenMailto(s1,s2)
+{document.write('<a href="mailto:'+s1+'@'+s2+'">'+s1+'@'+s2+'</a>');}
+HiddenMailto('thegr5store','gmail.com');
+</script>
+<!-- email script end -->
+
+<p>
+Optical parts you will need (you only need one each laser, splitter, flat, diverger but I list multiple sources)
+<ul>
+<li>($2) 
+<a href="https://www.aliexpress.com/item/32843915409.html">
+5mw red laser
+</a>
+ (red lasers are the best especially when testing difficult (low f/#) mirrors but green and blue lasers work quite well also).  I get 5v lasers 
+ - I test each one for dirt/noise as the plastic lenses can't be cleaned (most are scratched).  Get at least 30 lasers to be sure there is one good one.  About 10-20% are clean.</li>
+
+<li>($20)beam splitter - <a href="https://www.aliexpress.com/item/32963068893.html">aliexpress</a> (1 month shipping typically)</li>
+
+<li>($21)beam splitter (please get 15mm on a side) available at surplusshed.com</li>
+<li>($30)beam splitter (please get 15mm on a side) at 
+<a href="http://www.surplus-optics.com/Cube-Beamsplitters-Non-Polarizing-Standard-Type-s/302.htm">
+surplus optics </a>
+as an alternate source if SS is out</li>
+
+<li>($11.50)flat aluminized mirror (not dielectric) 
+<a href="http://www.surplus-optics.com/Plane-mirror-16x10mm-1mm-thk-Dielectric-p/mve1606-xs.htm">[surplus optics]</a>
+ (recommend about 10-15mm square or round but anywhere from 5mm to 20mm should be fine available at surplusshed.com search for "13mm mirror")</li>
+
+<li>($4)10mm x 10mm flat <a href="https://www.aliexpress.com/item/1005001721721060.html">aliexpress</a>
+(1 month shipping typically)</li>
+  
+<li>($22) diverging lens.  More on this below. </li>
+<li>digital camera - DSLR with focal length of 100mm and 'live view' works best (for F/10 and longer you want at least 100mm focal length and 200mm is better - for F/4 and shorter 100mm might be too much magnification and closer to 50mm camera lens is better).  Cell phone camera can work but not recommended as you need to get it about 1mm from the splitter and you need manual control over focus (and shutter speed and f/stop and ISO).</li>
+</ul>
+
+
+<p><br>
+<h2>Selecting a Diverging lens</h2>
+
+<image src='coverage.jpg' align=left style='margin-right:1em;'>
+This part will be different for different mirrors.  The photo at the left is what it looks like when a typical lens is used.  In this case it was a 6mm diameter (tiny!) lens with 12mm focal length.  In this photo I used a $7 green laser which happened to have a beam diameter of about 1.5mm.  The shorter the focal length the larger coverage you get as measured here.  The formula for the coverage is that you will get just enough coverage for your mirror if the lens_focal_length =  mirror F/# times 2 times laser diameter in mm.  Shorter focal length gives you larger area.  Since usable laser diameter is roughly 1.75mm (for typical red lasers), if you are testing a F/10 mirror then 35mm focal length diverger is just barely enough - better to use 15-20mm focal length for some margin.  You may decide to get a 2mm focal length lens so it works with all mirrors but then the resulting coverage area will be that much dimmer and the lens more expensive.
+<p>
+The diameter of the lens can be quite small as the beam passing through it is typically 2mm at the most.  I recommend 5mm to 10mm.
+<p>
+By the way the quality of the green coverage in this image has tons of noise in it and in this case it almost all came from the laser but some also from the diverger and splitter.  diverging lenses and especially splitters are easy to clean and often just need a puff of air.  Lasers however usually need to be disassembled and many laser types have plastic lenses that scratch when assembled.
+<p>
+The lens should be biconvex (BCX) (spherical both sides).  Avoid planoconvex (aka PCX) which will add spherical abberation for lenses shorter than around F/8 (PCX actually isn't so bad - it may introduce spherical aberration but if you flip the lens around it will introduce the same amount in the opposite sign so if you only have a PCX make sure to test both ways to see how much S.A. changes).  The lens can be the cheapest glass (typically N-BK7, N-SF5 but there are dozens of others).  The lens does not need to be aspheric and can even be a well polished sphere (ball lens).  You do not need coatings (they won't hurt - even if they are designed for non-visible light they will just dim the light a bit).  You do not need doublets because you will only be using one color at a time (normal lenses focus different colors at a slightly different focal point creating rainbow patterns).  Avoid achromats!  Actually achromats may work fine - I don't know.
+<p>
+Avoid molded lenses.  Avoid plastic lenses.  Avoid lenses meant to be used to focus an LED.  Avoid "condenser" lenses which are designed to focus light roughly on a slide in a slide projector (or similar) and are not necessarily accurate.
+<p>
+Here are good choices.  Try to pick the longest focal length lens that works with your mirror F/# to get a bright beam.
+<table>
+<tr>
+<th>focal length</th>
+<th>price</th>
+<th>diameter</th>
+<th>Approx Min. F/#</th>
+<th>part number</th>
+
+</tr>
+
+<!--
+<tr>
+<td>5mm</td><td>$31</td><td>5mm</td><td>F/3</td>
+<td><a href="https://www.edmundoptics.com/p/5mm-dia-x-5mm-fl-uncoated-double-convex-lens/18167/">Edmund Optics #63-530</a></td>
+</tr>
+
+<tr>
+<td>6mm</td><td>$22.50</td><td>6mm</td><td>F/3.6</td>
+<td><a href="https://www.edmundoptics.com/p/6mm-dia-x-6mm-fl-uncoated-double-convex-lens/2097/">Edmund Optics #32-021</a></td>
+</tr>
+-->
+<tr>
+<td>9mm</td><td>$25.50</td><td>6mm</td><td>F/3.6</td>
+<td><a href="https://www.edmundoptics.com/p/6mm-dia-x-9mm-fl-uncoated-double-convex-lens/2096/">Edmund Optics #32-020</a></td>
+</tr>
+
+<tr>
+<td>10mm</td><td>$22.75</td><td>6mm</td><td>F/4</td>
+<td><a href="https://www.thorlabs.com/thorproduct.cfm?partnumber=LB1157">Thorlabs LB1157</a></td>
+</tr>
+
+<tr>
+<td>10mm</td><td>$4.50</td><td>7mm</td><td>F/4</td>
+<td><a href="https://www.surplusshed.com/search_lenses.php?type=&diameter_to=7&diameter_from=7&focal_length_to=5&focal_length_from=10&sort=&sortby=+asc">Surplus Shed L8344</a> (this is 9.8mm F.L., not 6mm as advertised
+
+ - most of the focal lengths under 20mm are wrong at surplus shed)  This is DCX, not 
+
+ BCX but the curves are similar and close enough for very high accuracy
+ </td>
+</tr>
+
+<tr>
+<td>12mm</td><td>$25.50</td><td>6mm</td><td>F/4.8</td>
+<td><a href="https://www.edmundoptics.com/p/6mm-dia-x-12mm-fl-uncoated-double-convex-lens/2733/">Edmund Optics #32-964</a></td>
+</tr>
+
+<tr>
+<td>18mm</td><td>$25.50</td><td>6mm</td><td>F/7</td>
+<td><a href="https://www.edmundoptics.com/p/6mm-dia-x-18mm-fl-uncoated-double-convex-lens/2735/">Edmund Optics #32-966</a></td>
+</tr>
+
+<tr>
+<td>30mm</td><td>$25.50</td><td>6mm</td><td>F/13</td>
+<td><a href="https://www.edmundoptics.com/p/6mm-dia-x-30mm-fl-uncoated-double-convex-lens/5622/">Edmund Optics #45-133</a></td>
+</tr>
+
+</table>
+
+<p><br>
+
+
+<a name='pcx_calc'>
+<h2>PCX Calculator</h2>
+
+<script>
+function recalc()
+{
+    var t = document.getElementById('idPCXResult');
+    t.value='abc';
+    var fl = parseFloat(document.getElementById('idPCXfl').value);
+    var fnum = parseFloat(document.getElementById('idFRatio').value);
+    fl = fl/1000; // to meters
+    var f= fnum*2.0; // working focal ratio - because focus point is at 2x focal length the working f ratio is narrower by 2x
+    var result = 23700*fl/(f*f*f*f)/1.5; // 1.5 converts to dftfringe wyant waves
+    
+    t.value = result.toFixed(3);
+}
+</script>
+
+If you do decide to get a PCX (planoconvex lens) or if you have a DCX lens and want to know worst case how much spherical aberration may be added here's a calculator to determine that:
+<table>
+<tr>
+<td>
+    PCX focal length <input type=text value=10 id='idPCXfl' size=2 onchange='recalc()' oninput='recalc()'>mm&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</td>
+</tr>
+<tr>
+<td>
+    Mirror F/#
+    <input type=text value=4 id='idFRatio' size=2 onchange='recalc()' oninput='recalc()'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</td>
+</tr>
+<tr>
+<td>
+    S.A. added to your DFTFringe Z8 term:
+    <input type=text id='idPCXResult' readonly size=3> (if the flat side faces the splitter and curved side faces the mirror your S.A. term will be less negative (more positive).  In other words it will make a parabolic mirror appear to be more undercorrected in DFTFringe. If the PCX plano side faces the mirror then it will subtract from Z8 term (make the mirror look more overcorrected in DFTFringe).
+</td>
+</tr>
+</table>
+
+
+
+<p><br>
+<h2>Selecting camera and lens</h2>
+If you don't already own a DSLR, get one with live view mode - this is critical.  I recommend a used Nikon or Cannon.  I use the Nikon D7000 which costs $200 used on ebay.  It's best to avoid zoom lenses but I had luck with a 100-300 zoom (no luck with my 18-105mm zoom).  Fixed lenses are cheaper and work quite well.  The problem is that the cone of light coming out of the splitter to the camera expands quite quickly and even with the lens touching the splitter, zoom lenses tend to vignette the igram too much as you can see below.  
+<p>
+You want the focal length of the camera lens to be 8X to 25X the f/# of the mirror under test (e.g. F/4 mirror under test is best when tested using 32mm to 100mm lens).  F/2 lenses (or even wider) are ideal.
+<p>
+
+<table width=600><tr><td>
+    <a href='18-105big.JPG'><img src='18-105small.JPG'></a>
+</td><td>
+    <img src='camera.jpg'>
+</td></tr><tr><td>
+    <center>
+    <i class='smaller'> 18-105mm zoom at 105mm vignettes (green arrow) so badly that the red circle looks a circular mirror but is not. If I hadn't shifted the mirror to the right one could easily think the vignetting <b>was</b> the edge of the mirror!  Mirror edge pointed by blue arrow.
+    
+ It's like looking through a straw.  Zoomed at 18mm and moved until touching the splitter cube was even worse.
+        Click image to zoom in and see this better.
+    </i>
+    </center>
+</td><td>
+    <center>
+    <i class='smaller'>
+        Setup for photo at left (in summary: zoom lenses usually won't work)
+    </i>
+    </center>
+
+</td></tr></table>
+
+
+
+
+<h2>Camera Lens Calculator</h2>
+
+
+
+This will help you choose a camera and lens combination.  Enter your info
+<br>
+    F/# of mirror to test<input type=text value=4 id='idCamMirrorF' size=2 onchange='cam_recalc()' onkeyup='cam_recalc()'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<br>
+    DSLR Sensor Crop Factor
+    <input type=text value=1.5 id='idCamMult' size=2 onchange='cam_recalc()' onkeyup='cam_recalc()'>
+    aka "format factor" aka "focal length multiplier" this is 1X for a "full frame" sensor and 1.5X for more common, cheaper DSLRs
+<br>
+    Camera Lens Focal Length
+    <input type=text value=50 id='idCamLens' size=2 onchange='cam_recalc()' onkeyup='cam_recalc()'>
+    in mm.  Again, don't use zoom lenses.
+<br>
+    This means <span id='idCamResult'>X%</span> of vertical field taken by the igram (50% ideal, must be < 100%)
+<br>
+    Megapixels of camera
+    <input type=text value=16.2 id='idCamMP' size=2 onchange='cam_recalc()' onkeyup='cam_recalc()'>
+<br>    
+    This means <span id='idCamResult2'>X </span> vertical pixels for your camera (assuming 3:2 ratio)
+<br>
+    This means <span id='idCamResult3'>X </span> pixels on camera taken up by igram.  Recommend at least 300 pixels. You need at least 3 pixels per fringe.  Otherwise the fringes blur out to invisibility.
+
+
+<script>
+function cam_recalc()
+{
+    var fnum = document.getElementById('idCamMirrorF').value;
+    var mult = document.getElementById('idCamMult').value;
+    var lens = document.getElementById('idCamLens').value;
+    var MP = document.getElementById('idCamMP').value;
+
+    var percent = lens*mult/fnum*47/23.6; // 47% is what I get for my F/5.4 mirror with 85mm lens and 1.5X sensor
+    var cam_pixels = Math.sqrt(MP*1000000/1.5);
+    var pixels = percent/100*cam_pixels;
+    
+    document.getElementById('idCamResult').innerHTML = "<b>"+percent.toFixed()+"%</b>";
+    document.getElementById('idCamResult2').innerHTML = "<b>"+cam_pixels.toFixed()+"</b>";
+    document.getElementById('idCamResult3').innerHTML = "<b>"+pixels.toFixed()+"</b>";
+    
+}
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<p><br>
+<h2>Videos</h2>
+<ul>
+    <li>
+        <a href='https://www.youtube.com/channel/UCvz4goKtjouHwmS-qAjp8Tw'>
+            My Bath Interferometer channel - setting up, using a bath and how to use DFTFringe software
+        </a>
+    </li>
+    <li>
+        <a href='https://groups.io/g/Interferometry/wiki/Bath-Interferometer%2C-Tips-and-Best-Practices'>
+            More DFTFringe guides - a series of videos by Dale Eason
+        </a>
+    </li>
+    <!--
+    <li>
+        For assembling XYZ stage please watch both
+        <a href='https://youtu.be/Tmx_6KdQEZM'>this video</a>
+        and also 
+
+        <a href='https://www.youtube.com/watch?v=9S73klerFXQ'>this video</a>
+    </li>
+    -->
+</ul>
+
+
+
+
+<p><br>
+<h2>Software</h2>
+The latest 
+<a href='https://github.com/githubdoe/DFTFringe/releases'>
+DFTFringe can be downloaded here
+</a>
+
+
+
+<p><br>
+<h2>What can be tested with a Bath?</h2>
+Bath works best with concave spherical mirrors of any size but will also work well with parabolic mirrors down to a certain F#.  For example 25 inch mirrors as short as F/3.7 or 12 inch mirrors as short as F/3.  Longer focal length mirrors e.g. F/4 are much easier.  This limit is because the farther a mirror is from a perfect sphere, the more fringes it will have and at some point there are so many fringes (e.g. 1000), that you can no longer visually separate them (just a gray blur). For more details about how to test your F/2 mirror contact me.
+
+<p><br>
+<h2>Discussion group where questions can be answered</h2>
+<a href='https://groups.io/g/Interferometry/messages'>https://groups.io/g/Interferometry/messages</a>
+
+
+<p><br>
+<h2>Excellent introduction materials</h2>
+<a href='bathanalysisv2.5.pdf'>bathanalysisv2.5.pdf</a>
+
+
+<p><br>
+<h2>Software to analyze digital images of your fringes</h2>
+<a href='https://github.com/githubdoe/DFTFringe/releases'>https://github.com/githubdoe/DFTFringe/releases</a>
+
+<p><br>
+<p><br>
+<i>Feel free to email me with questions/issues/problems. 
+<!-- email script start -->
+<SCRIPT type="text/javascript">
+HiddenMailto('thegr5store','gmail.com');
+recalc();
+cam_recalc();
+</script>
+<!-- email script end -->
+</i>
+
+

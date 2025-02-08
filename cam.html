@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<!--
+
+Helps you pick out a camera and lens for interferometry
+
+version
+0.9
+-->
+
+
+<head>
+  <title>
+  Camera and Lens chooser tool for Bath Interferometry
+  </title>
+  <style>
+  body {
+    font-family: sans-serif;
+  }
+  @media (max-width: 1000px){
+      body, td, input, br { font-size: 3vw; 
+      text-size-adjust: 100%; /* Prevent automatic scaling */
+      -webkit-text-size-adjust: 100%; /* For WebKit browsers */
+    }
+    input[type="radio"] {width: 2.3vw; height: 2.3vw;}
+  }
+  @media (min-width:1000px){
+      body, td, input, br { font-size: 30px; 
+      text-size-adjust: 100%; /* Prevent automatic scaling */
+      -webkit-text-size-adjust: 100%; /* For WebKit browsers */
+    }
+    input[type="radio"] {width: 20px; height: 20px;}
+  }
+}
+
+  </style>
+</head>
+
+<body>
+<h2>Camera and Lens chooser tool for Bath Interferometry</h2>
+
+
+<table border="0" style="border:1px black solid;padding:5;border-radius:10px;background-color:#E0E0E0;">
+
+<tr>
+<td colspan=3>
+  <center><h3>Mirror</h3></center>
+</td>
+</tr>
+<tr>
+<td colspan=3>
+  Mirror Units: 
+  <input type="radio" name="units" id="idmm" value="mm"     onclick="unitclick(this)" checked ><label for="idmm">mm
+  <input type="radio" name="units" id="idin" value="inches" onclick="unitclick(this)"><label for="idin">inches
+</td>
+</tr>
+<tr>
+ <td rowspan=2 valign=top>
+    Mirror diameter
+    <input type="text" size=3 value=300 onKeyUp=updateDiam() id="idDiamtxt">
+ </td>
+ <td>
+  <input type="radio" name="radf" id="idradfnum" value="fnum" checked onclick="radfclick(this)"><label for="idradfnum" id="idLabelFnum" >f/#</label>
+ </td>
+ <td>
+  <input type="text"  id="idfnumtxt" value="4" size=3  onKeyUp="fnumchange()" onfocus="fnumfocus()">
+ </td>
+</tr>
+<tr>
+ <td>
+  <input type="radio" name="radf" id="idradfl" value="fl" onclick="radfclick(this)"><label for="idradfl" id="idLabelFL">focal length</label>
+ </td>
+ <td>
+  <input type="text"  id="idfltxt" value="0" size=3  onKeyUp="flchange()" onfocus="flfocus()">
+ </td>
+</tr>
+<tr>
+ <td colspan=3>
+   Conic constant <input type="text" size=2 value=-1 id='idCC' onKeyUp="update()"><br>(-1 for parabolic mirror, 0 for spherical)
+ </td>
+</tr>
+</table>
+<br>
+
+
+
+<div style="display: inline-block;border:1px solid black;border-radius:10px;padding:5;background-color:#E0E0E0;">
+<center><h3>Camera</h3></center>
+Camera sensor vertical size: <input type="text"  id="idsensor" value="16" size=3 onKeyUp="update()"> mm
+<br>
+Camera lens focal length: <input type="text"  id="idLensFL" value="50" size=3 onKeyUp="update()"> mm &nbsp;&nbsp; 
+Lens f/#: <input type="text"  id="idLensFnum" value="1.8" size=3 onKeyUp="update()">
+<br>
+
+<input type='radio' name='vertSensor' id='idradMegaPix' value='mp' onclick="radMPclick(this)" checked>
+<label for="idradMegaPix" id='idLabelMP'>
+  Camera megapixels: 
+</label>
+<input type="text"  id="idtxtMP" value="14.2" size=3 onKeyUp='MPchange()' onfocus='MPFocus()'> 
+<label for="idradMegaPix" id="idLabelMP2">
+(assume 3:2 sensor ratio)
+</label>
+
+<br>
+<input type='radio' name='vertSensor' id='idradVertPix' value='vp' onclick="radMPclick(this)">
+<label for="idradVertPix" id='idLabelVertPix'>
+  Camera sensor vertical pixels: 
+</label>
+<input type="text"  id="idtxtVertPixels" value="2000" size=4 onKeyUp='vertPixChange()' onfocus='vertPixFocus()'>
+</div>
+
+
+<br>
+<div style="">
+Camera FOV: <span id='idCamFOV'></span><br>
+Mirror FOV: <span id='idMirrorFOV'></span><br>
+Diameter of igram in pixels: <span id='idPixelDiam'></span><br>
+Pixels per fringe (smallest fringe): <span id='idppf'></span><br>
+</div>
+<br>
+<canvas id='idCanvas' width="500" height="300" '></canvas>
+
+
+<script>
+/*
+setSizes();
+$(window).resize(setSizes); // call again if window is resized
+*/
+
+//
+// create an array called "lookup", used by col() (color), that will do a very fast sine wave transformation - much faster than Math.sin()
+//
+var steps = 400;
+var lookup = new Array(steps+1);
+for(var i=0; i<steps; i++)
+  lookup[i] = (Math.sin( (i-steps/2)/(steps/2)*3.1415926/2)+1)*127;
+lookup[steps]=255; // takes care of almost impossible case where input is 1
+// col() converts x which is 0 to 1 into an output from 0 to 255 on a sine curve 
+
+
+let vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+console.log(vw);
+
+var radioPosition="mm"; // versus "inches"
+fnumchange();
+radfclick(get('idradfnum'));
+MPFocus();
+radMPclick(get('idradMegaPix'));
+MPchange();
+update();
+
+
+
+
+function col(x) // (color)
+{
+  return lookup[Math.floor(x*steps)];
+}
+
+
+
+
+function min(a,b) { return a<b ? a: b; }
+
+function update()
+{
+  // calculate igram size on sensor
+  
+  var sensorPixels = parseFloat(get('idtxtVertPixels').value);
+  var lensFL = parseFloat(get('idLensFL').value);
+
+  var sensorMM = parseFloat(get('idsensor').value);
+  var camFOV = lensFL/sensorMM;
+  var camFOVdeg = Math.atan(1/camFOV/2)*2*180/3.14159;
+  var mirrorFNum = parseFloat(get('idfnumtxt').value);
+  var mirrorFOV = mirrorFNum*2;
+  var mirrorFOVdeg = Math.atan(1/mirrorFOV/2)*2*180/3.14159;
+  var mirrorFOVmm = camFOV/mirrorFOV*sensorMM;
+  var cc = parseFloat(get('idCC').value);
+  var mirror_diam = get('idDiamtxt').value;
+  if (get('idin').checked)
+    mirror_diam *=25.4;
+    
+    
+    
+  var wl=650;
+  var z8 = cc*(mirror_diam/(wl/1000000))/(3072 * mirrorFNum * mirrorFNum * mirrorFNum);
+  //if (radioPosition == "inches")
+  
+  get('idMirrorFOV').innerHTML=mirrorFOVdeg.toFixed(0)+" deg";
+  if (mirrorFOVdeg > camFOVdeg)
+  {
+      suggested_camera_focal_length = mirrorFOV*sensorMM;
+      get('idCamFOV').innerHTML=camFOVdeg.toFixed(0)+" deg (need cam lens f.l. < "+suggested_camera_focal_length.toFixed(0)+"mm)";
+      get('idCamFOV').style.color='red';
+  }
+  else
+  {
+      get('idCamFOV').innerHTML=camFOVdeg.toFixed(0)+" deg (Field of View)";
+      get('idCamFOV').style.color='black';
+  }
+  
+  igramPixels = sensorPixels * camFOV/mirrorFOV;
+  get('idPixelDiam').innerHTML = igramPixels.toFixed(0);
+  
+  t_can = document.getElementById('idCanvas');
+  ctx = t_can.getContext('2d');
+  
+  canvas_width = t_can.clientWidth;
+  canvas_height = t_can.clientHeight;
+  ctx.fillStyle = 'rgb(255,255,255)'; // fill background color
+  ctx.fillRect(0, 0, canvas_width, canvas_height);
+  ctx.lineWidth=1;
+  ctx.strokeStyle="rgb(0,0,0)";
+  ctx.beginPath();
+  
+  camera_ratio=3/2; // width/height
+  
+  
+  
+  width = min(canvas_width, canvas_height*camera_ratio);
+  height = width/camera_ratio;
+  scale = min(height/sensorMM, height/mirrorFOVmm);
+  xoff = canvas_width/2;
+  yoff = canvas_height/2;
+
+
+  // sensor fov
+  pixW = sensorMM*camera_ratio*scale;
+  pixH = sensorMM*scale;
+  /*
+  ctx.moveTo(xoff - pixW/2,yoff-pixH/2);
+  ctx.lineTo(xoff + pixW/2,yoff-pixH/2);
+  ctx.lineTo(xoff + pixW/2,yoff+pixH/2);
+  ctx.lineTo(xoff - pixW/2,yoff+pixH/2);
+  ctx.lineTo(xoff - pixW/2,yoff-pixH/2);
+  ctx.stroke();
+  */
+  ctx.fillStyle="black";
+  ctx.fillRect(xoff - pixW/2, yoff-pixH/2, pixW, pixH);
+
+    
+  // igram
+  ctx.strokeStyle="rgb(255,0,0)";
+  ctx.beginPath();
+  ctx.arc(xoff, yoff, mirrorFOVmm*scale/2, 0, 2*Math.PI); // divide by 2 because it's radius, not diameter
+  ctx.stroke();
+  
+  if (mirrorFOVdeg / camFOVdeg < 1)
+  {
+    tilt=-z8*7-4;
+    defocus=-z8*1.2-.3;
+    astig=0;
+    pixels = Math.round(mirrorFOVmm*scale,0);
+    oversample=2000/pixels*Math.abs(z8)/10;
+    if (oversample > 10) oversample=10; // otherwise it gets too slow on cpu
+    if (oversample < 1) oversample=1;
+    ppf = fringes(ctx, pixels, xoff-mirrorFOVmm*scale/2,yoff-mirrorFOVmm*scale/2,
+                  z8,tilt,defocus,astig,655, oversample);
+    
+    ppf = ppf*igramPixels/pixels;
+    if (ppf > 3)
+      get('idppf').innerHTML=ppf.toFixed(1);
+    else if (ppf > 2.2)
+      get('idppf').innerHTML="<bold><font color='#ec0'>"+ppf.toFixed(1)+"</font></bold>"
+    else
+      get('idppf').innerHTML="<font color='red'>"+ppf.toFixed(1)+"</font> Not enough pixels. Need longer focal length lens or more pixels in camera."
+    
+  }
+
+    ctx.font = '20px sans';
+    ctx.fillStyle="rgb(130,130,130)";
+    ctx.fillText('Camera FOV', xoff-pixW/2+5, yoff-pixH/2+25); // 25 is font height plus margin, 5 is left margin
+  
+  
+}
+
+function nmToRGB(wavelength)
+{
+
+  if((wavelength < 440)){
+    red = 0;
+    green = 0.0;
+    blue = 1.0;
+  }else if((wavelength >= 440) && (wavelength<490)){
+    red = 0.0;
+    green = (wavelength - 440) / (490 - 440);
+    blue = 1.0;
+  }else if((wavelength >= 490) && (wavelength<510)){
+    red = 0.0;
+    green = 1.0;
+    blue = -(wavelength - 510) / (510 - 490);
+  }else if((wavelength >= 510) && (wavelength<580)){
+    red = (wavelength - 510) / (580 - 510);
+    green = 1.0;
+    blue = 0.0;
+  }else if((wavelength >= 580) && (wavelength<645)){
+    red = 1.0;
+    green = -(wavelength - 645) / (645 - 580);
+    blue = 0.0;
+  }else if((wavelength >= 645) && (wavelength<781)){
+    red = 1.0;
+    green = 0.0;
+    blue = 0.0;
+  }else{
+    red = 1.0;
+    green = 0.0;
+    blue = 0.0;
+  };
+  return [red,green,blue];
+  //return "rgb("+red+","+green+","+blue+")";
+  
+}
+
+function bytediv(a,b)
+{
+  // divide a by b where both are integers and result needs to be integer from 0 to 255
+  return min(Math.round(a/b,0), 255);
+}
+
+
+function fringes(ctx,pixels,offsetX,offsetY,z8,tilt,defocus,astig,wavelength, oversample)
+{
+    // if oversample is for example 2 then we calculate average of 4X (2 squared) pixels per actual pixel for anti-aliasing
+    oversample = Math.round(oversample,0); // must be integer
+    var startTime = new Date();
+
+    
+    var id = ctx.createImageData(pixels,pixels);
+    var pix = id.data;
+
+    //var t = document.getElementById('idlogging');
+
+    var rgb = nmToRGB(wavelength);
+    var red = rgb[0];
+    var green = rgb[1];
+    var blue = rgb[2];
+    var rsum,gsum,bsum; // adds up RGB color before averaging
+
+
+
+
+  
+    
+    // fill background color
+    /*ctx.fillStyle = 'rgb('+red*80+','+green*80+','+blue*80+')';
+    ctx.fillRect(0, 0, canvas_size-1, canvas_size-1);
+    ctx.fillStyle = 'rgb(200,200,200)';*/
+    
+    // create sinwave shortcut
+
+    // loop through every pixel
+    var c_z8 = z8;//Math.sqrt(5);
+    var c_tilt = tilt;
+    var c_def = defocus;//Math.sqrt(3);
+    var c_astig = astig;//astig*Math.sqrt(6);
+    var pixels2 = pixels/2;
+    
+    
+    pix[4*pixels*pixels-1]=255; // thought this might save time as it might create the array all at once?
+    /*pix[1]=0;
+    pix[2]=0;
+    pix[3]=255;*/
+    var img_ind=0;
+    
+    var xyinc=1/pixels2;
+    var overinc = xyinc/oversample;
+    var oversample2 = oversample*oversample;
+    var xunit= -1 - xyinc; // these go from -1 to +1
+    var yunit= -1 - xyinc;
+    var xx=0;
+    var yy=0;
+    var z=0;
+    
+    for(var y=0; y<pixels; y++)
+    {
+      yunit += xyinc;
+      xunit= -1 - xyinc;
+      yy = yunit*yunit;
+      for(var x=0; x<pixels; x++)
+      {
+         xunit += xyinc;
+         xx = xunit*xunit;
+         r2 = xx + yy;
+         if (r2 > 1)
+         {
+           //outside unit circle
+           pix[img_ind++]=0;//red*80;
+           pix[img_ind++]=0;//green*80;
+           pix[img_ind++]=0;//blue*80;
+           pix[img_ind++]=255; // transparent         
+           continue; 
+         }
+         save_xunit = xunit;
+         save_yunit = yunit;
+         rsum=0;
+         gsum=0;
+         bsum=0;
+         for (overy=0; overy<oversample; overy++)
+         {
+           yy = yunit*yunit;
+           xunit = save_xunit;
+           for (overx=0; overx<oversample; overx++)
+           {
+             xx = xunit*xunit;
+             r2 = xx + yy;
+             r4 = r2*r2;
+             z = c_z8*(6*(r4-r2)+1) + // z8 S.A.
+                 c_tilt*xunit +          // xtilt
+                c_def*(2*r2-1) +     // defocus
+                c_astig*xx - c_astig*yy;          // astig
+                 
+             // z is already in waves  
+             // z=0,1,2 should be black and z=0.5 1.5 etc should be brightest
+             z = 2*Math.abs(.5 - (z-Math.floor(z))); // now ranges from 0 to 1 where 1 is brightest
+             brightness=col(z);
+             rsum+=brightness*red;
+             gsum+=brightness*green;
+             bsum+=brightness*blue;
+
+             xunit += overinc;
+           }
+           yunit += overinc;
+         }
+         pix[img_ind++] = bytediv(rsum,oversample2);
+         pix[img_ind++] = bytediv(gsum,oversample2);
+         pix[img_ind++] = bytediv(bsum,oversample2);
+         pix[img_ind++] = 255;
+         
+         xunit = save_xunit;
+         yunit = save_yunit;
+           
+           
+      }
+    }
+    ctx.putImageData(id,offsetX,offsetY);
+    //t.innerHTML="time: "+ ((new Date()) - startTime).toFixed(0) + " ms";
+    
+    // now find highest slope - look only along the X axis and only check X slope
+    var maxSlope=0;
+    var maxSlopePixel=0;
+    var slope=0;
+    xunit = -1 - xyinc;
+    for (var xp=0; xp<pixels; xp++)
+    {
+        xunit += xyinc;
+        var x = xunit;
+        if (Math.abs(xunit) > 1) continue; // only check within unit circle
+        var x3 = x*x*x;
+        
+        slope = c_z8*6*(4*x3-2*x) + c_tilt + c_def*4*x + c_astig*2*x;
+        
+        if (Math.abs(slope) > Math.abs(maxSlope))
+        {
+            maxSlope = slope;
+            maxSlopePixel=xp;
+        }
+    }
+    
+    // maxSlope is now in waves per unit circle radius
+    maxSlope = maxSlope/(pixels/2);  // now in waves per pixel
+    
+    var ppf = Math.abs(1/maxSlope);
+
+    /*
+    var ts = document.getElementById('idslope');
+    
+    if (Math.sign(defocus) * Math.sign(astig) < 0 ||
+       Math.abs(astig) > 2)
+    {
+        // hide "closest fringes" stuff - as the closest fringe is likely not along the X axis in these conditions
+        ts.style.display="none";
+        document.getElementById('idSlopeControl').style.display='none';
+    }
+    else
+    {
+        ts.style.display="";
+        document.getElementById('idSlopeControl').style.display='';
+
+        ts.innerHTML="Closest fringes: "+ppf.toFixed(2)+" pixels per fringe";
+        
+        if (ppf < 3 || ppf < pixels/360)
+            ts.innerHTML="<font color='red'><b>"+ts.innerHTML+" (maybe add defocus?)</b></font>";
+         
+        if (ppf < pixels/360 && pixels > 720)
+          ts.innerHTML += " (lowest I've ever done at this resolution: "+
+            (pixels/360).toFixed(1);
+            
+        if (document.getElementById('chkShowSlope').checked)
+        {
+            // show a circle around the spot
+            ctx.strokeStyle="rgb(150,150,150)";
+            ctx.lineWidth=3;
+            ctx.beginPath();
+            ctx.arc(maxSlopePixel+4,4+pixels/2,pixels/30,0,Math.PI*2,true);//x, y, radius, startAngle, endAngle, counterclockwise)
+            ctx.stroke();
+        }
+    }
+    */
+    return ppf;
+}
+
+
+
+
+
+function MPchange()
+{
+  get('idtxtVertPixels').value = Math.sqrt(get('idtxtMP').value*1000000/1.5);
+  round('idtxtVertPixels', 0);
+  update();
+}
+
+function vertPixChange()
+{
+}
+
+
+function vertPixFocus()
+{
+  get('idradVertPix').click();
+}
+
+function MPFocus()
+{
+  get('idradMegaPix').click();
+}
+
+function radMPclick(t)
+{
+  if (t.value == "mp")
+  {
+    get('idtxtMP').style.color='black';
+    get('idLabelMP').style.color='black';
+    get('idLabelMP2').style.color='black';
+
+    get('idradVertPix').style.color='gray';
+    get('idtxtVertPixels').style.color='gray';
+    get('idLabelVertPix').style.color='gray';
+
+    MPchange();
+  }
+  else
+  {
+    get('idtxtMP').style.color='gray';
+    get('idLabelMP').style.color='gray';
+    get('idLabelMP2').style.color='gray';
+
+    get('idradVertPix').style.color='black';
+    get('idtxtVertPixels').style.color='black';
+    get('idLabelVertPix').style.color='black';
+    update();
+  }
+}
+
+function fnumfocus()
+{
+  get('idradfnum').click();
+}
+
+function flfocus()
+{
+  get('idradfl').click();
+}
+
+function fnumchange()
+{
+  get('idfltxt').value = get('idfnumtxt').value * get('idDiamtxt').value;
+  round('idfltxt', radioPosition=="mm" ? 0 : 1);
+  update();
+}
+
+function flchange()
+{
+  get('idfnumtxt').value = get('idfltxt').value / get('idDiamtxt').value;
+  round('idfnumtxt', 2);
+  update();
+}
+
+
+function get(id)
+{
+  return document.getElementById(id);
+}
+
+function round(id,decimals)
+{
+  var t=get(id);
+  t.value=parseFloat(t.value).toFixed(decimals);
+}
+
+function unitclick(myRadio)
+{
+  // change all mm to inch or back
+  var prev = radioPosition;
+  radioPosition = myRadio.value;
+  if (prev == radioPosition)
+  {
+    // no change
+    return;
+  }
+  // switch over all units
+  if (radioPosition == "mm")
+    multiplier = 25.4;
+  else
+    multiplier = 1/25.4;
+  get('idDiamtxt').value *= multiplier;
+  round('idDiamtxt', radioPosition=="mm" ? 0 : 1);
+  get('idfltxt').value *= multiplier;
+  round('idfltxt', radioPosition=="mm" ? 0 : 1);
+
+
+
+
+}
+function radfclick(myRadF)
+{
+  // grey out unselected radio row
+  if (myRadF.value == "fnum")
+  {
+    get('idfltxt').style.color='gray';
+    get('idLabelFL').style.color='gray';
+    get('idfnumtxt').style.color='black';
+    get('idLabelFnum').style.color='black';
+  }
+  else
+  {
+    get('idfltxt').style.color='black';
+    get('idLabelFL').style.color='black';
+    get('idfnumtxt').style.color='gray';
+    get('idLabelFnum').style.color='gray';
+    
+  }
+}
+
+
+
+
+function updateDiam()
+{
+  mirror_diameter = get('idDiamtxt').value;
+  if (mirror_diameter == 0 || mirror_diameter=="")
+    return;
+  if (get('idradfnum').checked)
+  {
+    // recalculate focal length
+    fnumchange();    // recalculate fnum
+    flchange();
+  }
+  else
+  {
+    // recalculate fnum
+    flchange();
+  }
+}
+</script>
+
+</body>
+
+

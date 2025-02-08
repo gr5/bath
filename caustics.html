@@ -1,0 +1,1041 @@
+<!--
+version
+0.1   
+
+-->
+<head><head>
+<title>
+Caustics - Display caustics
+</title>
+</head>
+
+<canvas id='idCanvas' width="1000" height="1000" '></canvas>
+
+<script>
+
+  // --------------------------------------------------------
+  //@@
+  mirror_diam = 12*25.4;
+  mirror_fl=3*mirror_diam;
+  mirror_roc=mirror_fl*2;
+  mirror_roc_sq = mirror_roc*mirror_roc;
+  mirror_fnum=mirror_fl/mirror_diam;
+  bParabolic=true;
+  
+  var mm_width_needed=100; // in mm
+  x_offset = 30
+  y_offset = mm_width_needed/2;
+  
+  // --------------------------------------------------------
+
+
+
+
+
+
+var ctx;
+var splitter={}; // contains:  tl (topleft),tr,bl,br,W (width),H,center,
+                 // also lines: top,bottom,left,right,diagonal
+var units_per_mm;
+var x_offset;
+var y_offset;
+var make_top_portion_blue_start=0;
+var make_top_portion_blue_end=0;
+var sensor;
+var lens;
+
+
+function max(a,b)
+{
+
+  return a>b?a:b;
+}
+
+function min(a,b)
+
+{
+  return a<b?a:b;
+}
+
+function avg(a,b)
+
+{
+    return (a+b)/2;
+}
+
+
+function moveto(_coord, _y)
+{
+  if (_coord instanceof coord)
+    ctx.moveTo( (_coord.x+x_offset)*units_per_mm, (_coord.y+y_offset) *units_per_mm);
+  else
+    ctx.moveTo( (_coord+x_offset)*units_per_mm, (_y+y_offset) *units_per_mm);
+}
+
+function lineto(_coord, _y)
+{
+  if (_coord instanceof coord)
+    ctx.lineTo( (_coord.x+x_offset)*units_per_mm, (_coord.y+y_offset) *units_per_mm);
+  else
+    ctx.lineTo( (_coord+x_offset) *units_per_mm, (_y+y_offset)*units_per_mm);
+
+}
+
+function arc(a,b,c,a1,a2,ccw)
+{
+    ctx.arc((a+x_offset)*units_per_mm,
+            (b+y_offset)*units_per_mm,
+            c*units_per_mm,
+            a1,a2,ccw);
+}
+
+class coord
+{
+    // this class is used for both coords and vectors
+   constructor(_x, _y)
+   {
+
+       this.x=_x;
+       this.y=_y;
+
+   }
+   
+   copy()
+   {
+        return new coord(this.x,this.y);
+   }
+   
+   rotate(center, angle)
+   {
+       // rotate ourself around "center" by said angle
+       // first translate to 0,0 by subtracting center
+       
+       var x = this.x - center.x;
+       var y = this.y - center.y;
+       
+       // now rotate by angle CCW
+       
+       this.x = x*Math.cos(angle) - y*Math.sin(angle);
+
+       this.y = y*Math.cos(angle) + x*Math.sin(angle);
+       
+       // translate back again
+       this.x += center.x;
+       this.y += center.y;
+   }
+   
+   add(vector)
+   {
+       this.x+=vector.x;
+       this.y+=vector.y;
+   }
+   
+   scale(scalar)
+   {
+     this.x*=scalar;
+     this.y*=scalar;
+   }
+   
+   magnitude()
+   {
+      // returns length of vector
+      return Math.sqrt(this.x*this.x + this.y*this.y);
+   }
+   normalize()
+   {
+       this.scale(1/this.magnitude());
+   }
+   
+
+   rotate90()
+   {
+        // for vectors
+        var temp = this.x;
+        this.x = -this.y
+        this.y = temp;
+   }
+   rotate180()
+   {
+        this.x = -this.x;
+        this.y = -this.y;
+   }
+   
+   draw(_size, _color)
+   {
+        if (_size == null)
+          _size = 0.05;
+        if (_color==null)
+          ctx.fillStyle="rgb(200,200,0)";
+        else
+          ctx.fillStyle=_color;
+          
+        ctx.beginPath();
+        
+        arc(this.x,this.y, _size, 0, Math.PI*2,true);
+
+        ctx.fill();      
+   }
+   
+   lengthTo(_p2)
+   {
+       // find distance from this point to p2
+       var a = this.x-_p2.x;
+       var b = this.y-_p2.y;
+       return Math.sqrt(a*a+b*b);// pythagarean theorem
+   }
+   
+   average(p2)
+   {
+       // return new average point of current and point2
+       return new coord(
+            (this.x+p2.x)/2,
+            (this.y+p2.y)/2   );
+   }
+
+   
+}
+
+class line
+{
+    constructor(_p1, _p2)
+    {
+        this.p1 = _p1;
+        this.p2 = _p2;
+    }
+    intersection(line2) // returns a point (or (0,0) and ret.bParallel=true if parallel)
+    {
+       // https://www.geeksforgeeks.org/program-for-point-of-intersection-of-two-lines/
+       var A = this.p1;
+       var B = this.p2;
+       var C = line2.p1;
+       var D = line2.p2;
+       var a1 = B.y - A.y;
+       var b1 = A.x - B.x;
+       var a2 = D.y - C.y;
+       var b2 = C.x - D.x;
+       var det = a1*b2 - a2*b1;
+       if (det == 0)
+       {
+
+         // parallel
+         var ret = new coord(0,0);
+         ret.parallel = true;
+         ret.contained = false;
+         return ret;
+       }
+       var c1 = a1*A.x + b1*A.y;
+       var c2 = a2*C.x + b2*C.y;
+
+       var ret = new coord( (b2*c1 - b1*c2)/det,  (a1*c2 - a2*c1)/det);
+       ret.bParallel=false;
+       return ret;
+
+    }
+    
+    isIntersectedPointWithin(p)
+    {
+      var smidge=0.01;//mm - if within 0.01mm
+
+      return (
+            p.x+smidge >= min(this.p1.x, this.p2.x) &&
+            p.y+smidge >= min(this.p1.y, this.p2.y) &&
+            p.x-smidge <= max(this.p1.x, this.p2.x) &&
+            p.y-smidge <= max(this.p1.y, this.p2.y));
+    }
+    
+    add(vector)
+    {
+      this.p1.add(vector);
+      this.p2.add(vector);
+
+    }
+    
+    draw()
+    {
+        ctx.beginPath();
+        moveto(this.p1);
+        lineto(this.p2);
+        ctx.stroke();      
+    }
+    
+    copy()
+    {
+        return new line(this.p1.copy(), this.p2.copy());
+    }
+    
+    swap()
+    {
+        // swap p1, p2
+        var t = this.p1;
+        this.p1 = this.p2;
+        this.p2 = t;
+    }
+    
+    getVector()
+    {
+        // p2 minus p1 - returns coord
+        return new coord(this.p2.x - this.p1.x, this.p2.y - this.p1.y);
+    }
+    
+    distToPoint(p)
+    {
+        function sqr(x) { return x * x }
+        function dist2(v, w) { return sqr(v.x - w.x) + sqr(v.y - w.y) } // distance squared
+        var v = this.p1;
+        var w = this.p2;
+        var l2 = dist2(v, w);
+
+        if (l2 == 0) return Math.sqrt(dist2(p, v));
+        var t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.sqrt(
+               dist2(p, { x: v.x + t * (w.x - v.x),
+                          y: v.y + t * (w.y - v.y) }));
+        
+    }
+    
+}
+
+function dotProduct(v1,v2)
+{
+    return v1.x*v2.x + v1.y*v2.y;
+}
+
+function reflect(l,transitionLine)
+{
+    // line (l) will be modified and it needs to have p1 where beam comes from and p2 at reflection point
+    var incidentVec = l.getVector();
+    incidentVec.normalize();
+    
+    // get normal of surface
+    var normal = transitionLine.getVector();
+    normal.rotate90();
+    normal.normalize();
+    
+    var scale_norm = -2*dotProduct(incidentVec, normal);
+    normal.scale(scale_norm);
+    normal.add(incidentVec);
+    
+    var p1 = l.p2.copy();
+    var p2 = p1.copy();
+    p2.add(normal);
+    
+    return new line(p1,p2);
+}
+
+var bDragging = false;
+var drag_start_x=0;
+var drag_start_y=0;
+var offset_start_x=0;
+var offset_start_y=0;
+var offset_start_x=0;
+var offset_start_y=0;
+
+function myDown(e){
+
+
+
+    // get the current mouse position
+    var mx;
+    var my;    
+    
+    var t_can = document.getElementById('idCanvas');
+    var BB=t_can.getBoundingClientRect();
+    var offsetX=BB.left;
+    var offsetY=BB.top;    
+    
+    if (e.touches)
+    {
+        if (e.touches.length > 1)
+            return; // otherwise pinch zoom can hit a handle
+
+        mx=parseInt(e.touches[0].clientX)/units_per_mm;
+        my=parseInt(e.touches[0].clientY)/units_per_mm;
+    }
+    else
+    {
+        mx=parseInt(e.clientX)/units_per_mm;
+        my=parseInt(e.clientY)/units_per_mm;
+    }
+    //alert(""+mx+" "+my);
+    
+
+    drag_start_x = mx;
+    drag_start_y = my;
+    offset_start_x = x_offset;
+    offset_start_y = y_offset;
+    bDragging=true;
+    
+    //console.log(""+mx+" "+my);
+    // debugging: add a dot to the scree at this spot
+    //var p = new coord(mx,my);
+    //p.draw();
+}
+
+function myUp(e){
+    if (bDragging==false) return;
+    // tell the browser we're handling this mouse event
+    //e.preventDefault();
+    //e.stopPropagation();
+    bDragging=false;
+}
+
+// handle mouse moves
+function myMove(e){
+    // if we're dragging anything...
+    if (bDragging==false) return;
+
+    // tell the browser we're handling this mouse event
+    e.preventDefault();
+    e.stopPropagation();
+
+    // get the current mouse position
+    var mx;
+    var my;    
+    var t_can = document.getElementById('idCanvas');
+
+    var BB=t_can.getBoundingClientRect();
+    var offsetX=BB.left;
+    var offsetY=BB.top;    
+    if (e.touches)
+    {
+        mx=parseInt(e.touches[0].clientX)/units_per_mm;
+        my=parseInt(e.touches[0].clientY)/units_per_mm;
+    }
+    else
+    {
+        mx=parseInt(e.clientX)/units_per_mm;
+        my=parseInt(e.clientY)/units_per_mm;
+    }
+
+    // calculate the distance the mouse has moved
+    // since last update
+    var dx=mx-drag_start_x;
+    var dy=my-drag_start_y;
+    x_offset = offset_start_x + dx;
+    y_offset = offset_start_y + dy;
+
+    update();
+}
+function myKeys(e)
+{
+  /*var t_can = document.getElementById('idCanvas');
+  if (document.activeElement != t_can)
+    return;*/
+
+  if (e.key=="a")
+  {
+    make_top_portion_blue_start = 0;
+    make_top_portion_blue_end   = 0.1;
+    update();
+    return;
+  }
+  if (e.key=="b")
+  {
+    make_top_portion_blue_start += 0.1;
+    make_top_portion_blue_end   += 0.1;
+    update();
+    return;
+  }
+  
+  if (e.key=="c")
+  {
+    bShowCameraBody = ! bShowCameraBody;
+    update();
+    return;
+  }
+  
+  if (e.key=="f")
+  {
+    bShowFlat = ! bShowFlat;
+    bReflectOffFlat = bShowFlat;
+    update();
+    return;
+  }
+  if (e.key=="l")
+  {
+    bShowLens = ! bShowLens;
+    if (bShowLens)
+      bShowSensor=true;
+    update();
+    return;
+  }    
+  if (e.key=="n")
+  {
+    make_top_portion_blue_start = 0;
+    make_top_portion_blue_end   = 0;
+    update();
+    return;
+  }  
+  
+  
+  if (e.key=="p")
+  {
+    bParabolic = ! bParabolic;
+    if (bParabolic)
+      bShowFlat = bReflectOffFlat = false;
+    update();
+    return;
+  }  
+  if (e.key=="s")
+  {
+    bShowSensor = ! bShowSensor;
+    if (bShowLens)
+      bShowSensor=true;
+    update();
+    return;
+  }  
+  if (e.key=="t")
+  {
+    bTDE = ! bTDE;
+    update();
+    return;
+  }  
+
+
+
+
+if (e.key=="z")
+  {
+    bBrighter = ! bBrighter;
+    update();
+    return;
+  }  
+  
+  if (e.key==",")
+  {
+    if (bShowSensor && !bShowLens)
+      sensor_position -= 5;
+    else
+      lens_position -= 5;
+    update();
+    return;
+  }  
+
+  if (e.key==".")
+  {
+    if (bShowSensor && !bShowLens)
+      sensor_position += 5;
+    else
+      lens_position += 5;
+    update();
+    return;
+  }  
+
+
+
+  return false;
+}
+
+function myWheel(e)
+{
+  // zoom in or out centered on mouse location
+  console.log(e.deltaY);
+  if (e.deltaY == 0) return; // side scroll - ignore
+  e.preventDefault();
+  e.stopPropagation();
+  
+  // get mouse location
+  mx=parseInt(e.clientX)/units_per_mm;
+  my=parseInt(e.clientY)/units_per_mm;
+  
+  if (e.deltaY < 0)
+  {
+    // zoom in
+    scaleBy=0.9;
+  }
+  else
+  {
+    // zoom out
+    scaleBy=1.1;
+  }
+  x_offset += (scaleBy-1)*mx;
+  y_offset += (scaleBy-1)*my;
+  mm_width_needed *= scaleBy;
+  console.log(mm_width_needed);
+  update();
+  return false;
+}
+function init()
+{
+   var t_can = document.getElementById('idCanvas');
+    document.addEventListener("keydown", myKeys, false);
+    t_can.onmousedown = myDown;
+    t_can.onmouseup = myUp;
+    t_can.onmousemove = myMove;
+    t_can.addEventListener("touchstart", myDown, false);    
+    t_can.addEventListener("touchend", myUp, false);    
+    t_can.addEventListener("touchmove", myMove, false);
+    t_can.addEventListener('wheel',function(event)
+    {
+      myWheel(event);
+      return false; 
+    }, false);
+}
+
+
+function update()
+{
+    if (bShowLens)
+      sensor_position = lens_position+1/(1/(mirror_roc-lens_position) - 1/lens_fl);
+    sensor = new line(new coord(sensor_position,sensor_height/2), new coord(sensor_position,-sensor_height/2));
+    lens = new line(new coord(lens_position,lens_diam/2), new coord(lens_position,-lens_diam/2));
+
+
+    var t_can = document.getElementById('idCanvas');
+
+    ctx = t_can.getContext('2d');
+    
+    t_can.width=1920;
+    t_can.height=1080;
+
+
+    canvas_width = t_can.clientWidth;
+    canvas_height = t_can.clientHeight;
+    c_size = min(canvas_width, canvas_height);
+    var left_edge = new line(new coord(-x_offset,-10), new coord(-x_offset,10));
+    units_per_mm = canvas_height/mm_width_needed;
+
+    ctx.fillStyle = 'rgb(0, 0, 0)';
+    ctx.fillRect(0, 0, canvas_width, canvas_height);
+    
+
+
+    splitter.W=15;
+    splitter.H=15;
+    splitter.center = new coord(2,0);
+    splitter.tl = new coord(splitter.center.x - splitter.W/2, splitter.center.y - splitter.H/2);
+    splitter.tr = new coord(splitter.center.x + splitter.W/2, splitter.center.y - splitter.H/2);
+    splitter.bl = new coord(splitter.center.x - splitter.W/2, splitter.center.y + splitter.H/2);
+    splitter.br = new coord(splitter.center.x + splitter.W/2, splitter.center.y + splitter.H/2);
+    
+    splitter.top = new line(splitter.tl,splitter.tr);
+    splitter.left = new line(splitter.tl,splitter.bl);
+    splitter.right = new line(splitter.br,splitter.tr);
+    splitter.bottom = new line(splitter.bl,splitter.br);
+    splitter.diagonal = new line(splitter.tl,splitter.br);
+    
+    
+    // draw splitter in white
+    ctx.lineWidth=1;
+    ctx.strokeStyle="rgb(255,255,255)";
+    ctx.beginPath();
+    moveto(splitter.tl);
+    lineto(splitter.tr);
+    lineto(splitter.br);
+
+    lineto(splitter.bl);
+    lineto(splitter.tl);
+    lineto(splitter.br);
+    ctx.stroke();
+    
+    flat= new line(splitter.bl.copy(), splitter.bl.copy());
+    flat.p1.y +=3
+    flat.p1.x +=3;
+    flat.p2.x +=12
+    flat.p2.y +=12;
+    if (bShowFlat)
+       flat.draw();
+    
+   
+
+    
+    if (bParabolic==false)
+    {
+      //spherical
+      var steps=600*150/mm_width_needed;
+      var step_size = mirror_diam/steps;
+      bFirst=true;
+      for(y=-mirror_diam/2; y<=mirror_diam/2; y+= step_size)
+      {
+        x = Math.sqrt(mirror_roc_sq - y*y);
+        
+        ray_start = new coord(x,y);
+        ray_end = new coord(0,0);
+        
+        ray = new line(ray_start, ray_end);
+        
+        var p;
+        if (bShowSensor && bShowLens)
+        {
+          p = ray.intersection(lens);
+        }
+        else if (bShowSensor)
+        {
+          p = ray.intersection(sensor);
+        }
+        else
+        {
+          p = ray.intersection(left_edge);
+        }        
+        ray.p2 = p;
+        
+        if (bShowLens)
+        {
+          image_height = mirror_diam * (lens_position - sensor_position) / (mirror_roc - lens_position);
+          y_image = -y * image_height/mirror_diam;
+          pleft = p.copy();
+          pleft.x -= .5/units_per_mm;
+          if (Math.abs(p.y) < lens_diam/2)
+          {
+            focus_ray = new line(pleft, new coord(sensor_position, y_image));
+            if (Math.abs(y_image) > sensor_height/2)
+            {
+              // continue ray past sensor
+              var p = focus_ray.intersection(left_edge);
+              focus_ray.p2 = p;
+            }
+            ctx.lineWidth=20/steps;
+            if (bBrighter)
+              ctx.lineWidth=80/steps;      
+            ctx.strokeStyle="rgb(255,255,255,0.8)";
+            focus_ray.draw();
+          }
+        }
+
+        // draw mirror
+        if (bFirst)
+        {
+          bFirst=false;
+        }
+        else
+        {
+          reflect_line = new line(new coord(xprev, yprev), ray_start);
+          ctx.lineWidth=1;
+          ctx.strokeStyle="rgb(0,255,0,1)";
+          reflect_line.draw();
+        }
+        xprev = x;
+        yprev = y;
+
+
+        // draw rays
+        ctx.lineWidth=20/steps;
+        if (bBrighter)
+          ctx.lineWidth=80/steps;      
+        ctx.strokeStyle="rgb(255,255,255,0.8)";
+        if (bReflectOffFlat)
+        {
+          // first we instersect ray from focal point to splitter diagonal
+          point_diag = ray.intersection(splitter.diagonal)
+          ray2 = new line(ray.p2, point_diag);
+          ray2.draw();
+          // reflect off splitter diag
+          ray3 = reflect(ray2, splitter.diagonal);
+          // intersect ray3 with flat
+          point_flat = ray3.intersection(flat);
+          ray3.p2 = point_flat;
+          ray3.draw();
+          // from flat to mirror - hack - just connect to ray.p1
+          ray4 = new line(ray3.p2, ray.p1);
+          ray4.draw();
+          
+        }
+        else
+        {
+          ray.draw();
+        }
+      }
+
+    if (bTDE)
+      {
+        tde_dist=5; //5mm
+        tde_waves=2; // wavefront waves
+        tde_mm = tde_waves/2 * 550e-6;  // 550e-6 is wavelength of green light in mm
+                                        // /2 to convert to surface (versus wavefront) error
+        y = mirror_diam/2;
+        x = Math.sqrt(mirror_roc_sq - y*y);
+        x += tde_mm; // this is our tde error
+        ray_start = new coord(x,y);
+
+        ctx.lineWidth=1;
+        ctx.strokeStyle="rgb(60,60,255,1)"; // light blue
+
+        // we are assuming last bit of mirror is tilted by tde_mm/tde_dist
+        // so this is the slope amount.  Then we want to double that because the reflected ray
+        // gets double the angle
+        
+        slope_ccw = 2*tde_mm/tde_dist;
+        angle = Math.atan(slope_ccw);
+        ray_end = new coord(0,0);
+        ray_end.rotate(ray_start, -angle);
+        
+        ray = new line(ray_start, ray_end);
+        var p;
+        if (bShowLens)
+        {
+          p = ray.intersection(lens);
+          ray.p2 = p;
+          ray.draw();
+          ray.p1 = p;
+          ray.p2.x -= .5/units_per_mm;
+          
+          image_height = mirror_diam * (lens_position - sensor_position) / (mirror_roc - lens_position);
+          y_image = -y * image_height/mirror_diam;
+          ray.p2 = new coord(sensor_position, y_image);
+        }
+        
+        if (bShowSensor)
+        {
+          p = ray.intersection(sensor);
+        }
+        else
+        {
+          p = ray.intersection(left_edge);
+        }            
+        ray.p2 = p;
+
+        ray.draw();
+        
+ 
+
+      }      
+    }
+    else
+    {
+      //parabolic
+      var steps=200;
+      var step_size = mirror_diam/steps;
+      bFirst=true;
+      step_num=0;
+      for(y=-mirror_diam/2; y<=mirror_diam/2; y+= step_size)
+      {
+        step_num++;
+        // ray1 goes out from coc to mirror
+        // ray2 reflects back
+        // (x,y) is end point of ray1 and start of ray2
+        x = mirror_roc - y*y/4/mirror_fl;
+        ray1_end = new coord(x,y);
+        ray1 = new line(new coord(0,0), ray1_end);
+        
+        
+        slope = 2*y/4/mirror_fl;
+        reflect_line = new line(ray1_end, new coord(x-step_size*slope,y+step_size));
+        
+        
+        ray2 = reflect(ray1, reflect_line);
+        var p;
+        if (bShowLens)
+        {
+          p = ray2.intersection(lens);
+        }else if (bShowSensor)
+        {
+          p = ray2.intersection(sensor);
+        }
+        else
+        {
+          p = ray2.intersection(left_edge);
+        }
+        
+        //p = ray2.p2;
+        ray2.p2 = p;
+        
+        // outgoing rays
+        //ctx.strokeStyle="rgb(255,0,0,.5)";
+        //ray1.draw();
+        
+
+        // caustic
+        ctx.lineWidth=20/steps;
+        ctx.strokeStyle="rgb(255,255,255,.8)";
+        if (make_top_portion_blue_end>0 &&
+            step_num/steps < make_top_portion_blue_end &&
+            step_num/steps >= make_top_portion_blue_start)
+        {
+          ctx.lineWidth=2;
+          ctx.strokeStyle="rgb(30,30,255,1)";
+        }
+        ray2.draw();
+        
+        if (bShowLens)
+        {
+          image_height = mirror_diam * (lens_position - sensor_position) / (mirror_roc - lens_position);
+          y_image = -y * image_height/mirror_diam;
+          pleft = p.copy();
+          pleft.x -= .5/units_per_mm;
+          if (Math.abs(p.y) < lens_diam/2)
+          {
+            focus_ray = new line(pleft, new coord(sensor_position, y_image));
+            if (Math.abs(y_image) > sensor_height/2)
+            {
+              // continue ray past sensor
+              var p = focus_ray.intersection(left_edge);
+              focus_ray.p2 = p;
+            }
+            focus_ray.draw();
+
+          }
+        }
+
+        // curved (green) mirror
+        if (bFirst)
+        {
+          bFirst=false;
+        }
+        else
+        {
+          mirror_line = new line(new coord(xprev, yprev), ray2.p1);
+          ctx.lineWidth=1;
+          ctx.strokeStyle="rgb(0,255,0,1)";
+          mirror_line.draw();
+        }
+        xprev = x;
+        yprev = y;
+      }
+      
+    }
+    
+    
+    if (bShowSensor)
+    {
+      var cam_height_t=110-40;
+      var cam_height_b=40;
+      var cam_depth=60;
+      var depth_behind_sensor=15;
+      var lens_phys_diam = 65;
+      
+      var lens_depth = 50;
+      ctx.strokeStyle="rgb(100,100,100,1)";
+      ctx.lineWidth=1;      
+
+      
+      if (bShowCameraBody)
+      {
+        l = new line(new coord(0,0), new coord(0,0));
+        t = new line(new coord(0,0), new coord(0,0));      
+        // back of cam
+        l.p1.x = l.p2.x = sensor.p1.x-depth_behind_sensor;
+        l.p1.y = -cam_height_t;
+        l.p2.y = cam_height_b;
+        l.draw();
+        
+        // top/bot sides of cam
+        // t=top
+        t.p1 = l.p1.copy();
+        t.p2 = t.p1.copy();
+        t.p2.x += cam_depth;
+        t.draw();
+        
+        // b=bottom
+        b = t.copy();
+        b.p1.y=b.p2.y=l.p2.y;
+        b.draw();
+        
+        // connect sides to lens
+        t.p1 = t.p2.copy();
+        t.p2.x = t.p1.x;
+        t.p2.y = -lens_phys_diam/2;
+        t.draw();
+        b.p1 = b.p2.copy();
+        b.p2.x = b.p1.x;
+        b.p2.y = lens_phys_diam/2;
+        b.draw();
+        
+        // lens
+        t.p1=t.p2.copy();
+        t.p2.x+=lens_depth;
+        t.draw();
+        b.p1=b.p2.copy();
+        b.p2.x+=lens_depth;
+        b.draw();
+        
+        t.p1 = b.p2;
+        t.draw();
+      }
+
+      ctx.lineWidth=1;
+      ctx.strokeStyle="rgb(0,255,0,1)";
+      sensor.draw();
+      
+      
+    }
+    
+    if (bShowLens)
+    {
+      
+      ctx.strokeStyle="rgb(255,255,255,1)";
+      l1 = new line(new coord(lens_position-lens_edge_thick/2, lens_diam/2),
+                    new coord(lens_position+lens_edge_thick/2, lens_diam/2));
+      l1.draw();
+      l2 = new line(new coord(lens_position-lens_edge_thick/2, -lens_diam/2),
+                    new coord(lens_position+lens_edge_thick/2, -lens_diam/2));
+
+      l2.draw();   
+      
+      ct = (lens_center_thick-lens_edge_thick)/2;
+      a=(lens_diam/2)*(lens_diam/2)/(2*ct) - ct/2;
+      r=a+ct;
+      angle = Math.asin(lens_diam/2/r)
+      ctx.beginPath();
+      arc(lens_position-a+lens_edge_thick/2, 0, r,angle, -angle, true);
+      ctx.stroke();
+
+      ctx.beginPath();
+      arc(lens_position+a-lens_edge_thick/2, 0, r,angle+3.14159, -angle+3.14159, true);
+      ctx.stroke();
+      
+    }
+    
+    
+    
+}
+
+function animate(time_stamp_now)
+{
+  mm_width_needed *= 1.009;
+  y_offset = mm_width_needed/2;
+  //x_offset = mm_width_needed/2;
+  x_offset=20;
+  update();
+  
+  if (mm_width_needed > 1300)
+    return; // done
+    
+  requestAnimationFrame(animate);
+
+  
+}
+
+// camera lens and camera sensor
+
+//85 mm lens
+lens_fl=85;
+lens_diam=58;
+lens_edge_thick=3;
+lens_center_thick=7;
+
+//50mm F/2
+lens_fl=50;
+lens_diam=25;
+lens_edge_thick=2;
+lens_center_thick=6;
+
+
+lens_position=-70;
+
+sensor_height=16;
+
+sensor_position = -100;
+
+
+init();
+bShowLens=true; // camera lens
+bShowSensor=true; // camera sensor
+bShowCameraBody=true;
+bShowFlat=false;
+bParabolic=false;
+bReflectOffFlat=false;
+bTDE=false;
+bBrighter = false;
+make_top_portion_blue_start=0;
+make_top_portion_blue_end=0;
+mm_width_needed=120; // in mm
+y_offset = mm_width_needed/2;
+x_offset = mm_width_needed/2;
+x_offset=160;
+if (bShowLens)
+  bShowSensor=true;
+
+update();
+//requestAnimationFrame(animate); // 50 to 1300
+</script>
