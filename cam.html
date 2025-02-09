@@ -1,5 +1,18 @@
 <!DOCTYPE html>
 <!--
+todo:
+measure synthetic mirror cropping for all my lenses including zooms at 3 positions
+redo yesterday's experiment with 
+changing camera sensor vertical pixels doesn't update anything
+Shouldn't recalculate igram when nothing changed
+Add camera and lens chooser
+Add info about lens cropping
+test on safari, firefox
+add null value
+add zoom inset
+worry about minimum focus distance of lens
+
+
 
 Helps you pick out a camera and lens for interferometry
 
@@ -247,8 +260,15 @@ function update()
   
   if (mirrorFOVdeg / camFOVdeg < 1)
   {
-    tilt=-z8*7-4;
-    defocus=-z8*1.2-.3;
+  /*
+z8  def  tilt
+-10 12   70
+-5  6    35
+-1  1.5  7
+.5  */
+
+    tilt=-z8*7+4;
+    defocus=-z8*1.2+.3;
     astig=0;
     pixels = Math.round(mirrorFOVmm*scale,0);
     oversample=2000/pixels*Math.abs(z8)/10;
@@ -258,12 +278,17 @@ function update()
                   z8,tilt,defocus,astig,655, oversample);
     
     ppf = ppf*igramPixels/pixels;
-    if (ppf > 3)
+    if (ppf > 5.656) // assumes bayer filter
       get('idppf').innerHTML=ppf.toFixed(1);
-    else if (ppf > 2.2)
+    else if (ppf > 3.66)
       get('idppf').innerHTML="<bold><font color='#ec0'>"+ppf.toFixed(1)+"</font></bold>"
     else
-      get('idppf').innerHTML="<font color='red'>"+ppf.toFixed(1)+"</font> Not enough pixels. Need longer focal length lens or more pixels in camera."
+    {
+      if (mirrorFOVdeg / camFOVdeg > 0.75)
+        get('idppf').innerHTML="<font color='red'>"+ppf.toFixed(1)+"</font> Not enough pixels. Need more pixels in camera."
+      else
+        get('idppf').innerHTML="<font color='red'>"+ppf.toFixed(1)+"</font> Not enough pixels. Need longer focal length lens or more pixels in camera."
+    }
     
   }
 
