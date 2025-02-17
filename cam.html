@@ -29,8 +29,11 @@ version
   body {
     font-family: sans-serif;
   }
+  button {
+    border-radius : 0.3em;
+  }
   @media (max-width: 1000px){
-      body, td, input, br { font-size: 3vw; 
+      body, td, input, br, button { font-size: 3vw; 
       text-size-adjust: 100%; /* Prevent automatic scaling */
       -webkit-text-size-adjust: 100%; /* For WebKit browsers */
     }
@@ -38,13 +41,24 @@ version
    .info {width: 2.3vw;}
   }
   @media (min-width:1000px){
-      body, td, input, br { font-size: 30px; 
+      body, td, input, br, button { font-size: 30px; 
       text-size-adjust: 100%; /* Prevent automatic scaling */
       -webkit-text-size-adjust: 100%; /* For WebKit browsers */
     }
     input[type="radio"] {width: 20px; height: 20px;}
    .info {width: 23px;}
   }
+  .overlay {
+       opacity: 0.5; 
+       position:fixed;
+       top:0;
+       left:0;
+       height:100%;
+       width:100%;
+       background-color:black;
+       z-index:5;
+  }  
+   button {margin: 0.15em;}
 }
 
   </style>
@@ -100,6 +114,35 @@ version
 
 <div style="display: inline-block;border:1px solid black;border-radius:10px;padding:5;background-color:#E0E0E0;">
 <center><h3>Camera</h3></center>
+<div id='idBtnDiv'><button id='idBtnChooseCamera' type='button'>Please click here to choose a camera!</button><span id='idCamDescription'></span></div><p>
+
+
+<!-- popup window camera type -->
+<div id='idPopup1' style="display: inline-block;border:1px solid black;border-radius:10px;padding:5;background-color:#E0E0E0;position:absolute; display:none; margin:10px; padding: 20px;z-index:10;">
+<button id='idBtnRec'>I don't have a camera, please recommend one...</button><br>
+<button id='idBtnNik'>Nikon...</button><br>
+<button id='idBtnCan'>Canon...</button><br>
+<button id='idBtnCel'>Cell Phone</button><br>
+<button id='idBtnRas'>Raspberry Pi HQ Cam</button><br>
+<button id='idBtnWeb'>Web Cam</button><br>
+<button id='idBtnOth'>Other</button>
+<a href="javascript:void(0);" id='idClose1' style="float:right">Close</a>
+</div>
+
+<!-- popup window camera list -->
+<div id='idPopup2' style="display: inline-block;border:1px solid black;border-radius:10px;padding:5;background-color:#E0E0E0;position:absolute; display:none; margin:10px; padding: 20px;z-index:10;">
+</div>
+
+
+<!-- popup msgbox -->
+<div id='idMsgBox' style="display: inline-block;border:1px solid black;border-radius:10px;padding:5;background-color:#E0E0E0;position:absolute; display:none; margin:10px; padding: 20px;z-index:20;">
+<span id='idSpanMsgBox'></span>
+<a href="javascript:void(0);" id='idCloseMB' style="float:right">Close</a>
+</div>
+
+<!-- popup gray screen -->
+<div id='idDarken' class="overlay" style='display:none'></div>
+
 Camera sensor vertical size: <input type="text"  id="idsensor" value="16" size=3 onKeyUp="update()"> mm
 <br>
 Camera lens focal length: <input type="text"  id="idLensFL" value="50" size=3 onKeyUp="update()"> mm &nbsp;&nbsp; 
@@ -126,12 +169,15 @@ Lens f/#: <input type="text"  id="idLensFnum" value="1.8" size=3 onKeyUp="update
 
 <br>
 <div style="">
+Calculated results. Problems detected will have red text.<br>
 Camera FOV: <span id='idCamFOV'></span><br>
 Mirror FOV: <span id='idMirrorFOV'></span><br>
 Diameter of igram in pixels: <span id='idPixelDiam'></span><br>
 Pixels per fringe (smallest fringe): 
-<span id='idppf'></span>&nbsp;<img src="i.png" class="info" title="abc" id='idppf_info'>
-<br>
+<span id='idppf'></span>&nbsp;<img src="i.png" class="info" title="abc" id='idppf_info'><br>
+<span id='idsac0'>
+Estimated portion of igram available after lens cropping (blue circle in diagram below):
+<span id='idsac'></span>&nbsp;<img src="i.png" class="info" title="abc" id='idsac_info'><br></span>
 </div>
 <br>
 <canvas id='idCanvas' width="500" height="300" '></canvas>
@@ -139,6 +185,162 @@ Pixels per fringe (smallest fringe):
 
 <script src="jquery-3.7.1.min.js"></script> 
 <script>
+// brand 1=nikon 2-canon
+var selected_cam=null;
+var selected_lens=null;
+
+var camera_data=
+[
+{brand:1,name:"D1",sensor_mm:15.6,sensor_pixels:1312, prob:"no live view"},
+{brand:1,name:"D1H",sensor_mm:15.6,prob:"no live view"},
+{brand:1,name:"D1X",sensor_mm:15.6,prob:"no live view"},
+{brand:1,name:"D2H",sensor_mm:15.6,prob:"no live view"},
+{brand:1,name:"D2Hs",sensor_mm:15.6,prob:"no live view"},
+{brand:1,name:"D2Xs",sensor_mm:15.6,prob:"no live view"},
+{brand:1,name:"D3",sensor_mm:23.9,sensor_pixels:2832},
+{brand:1,name:"D3X",sensor_mm:23.9,sensor_pixels:4032},
+{brand:1,name:"D3S",sensor_mm:23.9,sensor_pixels:2832},
+{brand:1,name:"D4",sensor_mm:23.9,sensor_pixels:3280},
+{brand:1,name:"D4S",sensor_mm:23.9,sensor_pixels:3280},
+{brand:1,name:"D5",sensor_mm:23.9,sensor_pixels:3712},
+{brand:1,name:"D6",sensor_mm:23.9,sensor_pixels:3712},
+{brand:1,name:"D40",prob:"no live view"},
+{brand:1,name:"D40x",prob:"no live view"},
+{brand:1,name:"D60",prob:"no live view"},
+{brand:1,name:"D3000",prob:"no live view"},
+{brand:1,name:"D3100",sensor_mm:15.4,sensor_pixels:3072},
+{brand:1,name:"D3200",sensor_mm:15.4,sensor_pixels:4000},
+{brand:1,name:"D3300",sensor_mm:15.6,sensor_pixels:4000},
+{brand:1,name:"D3400",sensor_mm:15.6,sensor_pixels:4000},
+{brand:1,name:"D3500",sensor_mm:15.6,sensor_pixels:4000},
+{brand:1,name:"D5000",sensor_mm:15.8,sensor_pixels:2848},
+{brand:1,name:"D5100",sensor_mm:15.8,sensor_pixels:3264},
+{brand:1,name:"D5200",sensor_mm:15.6,sensor_pixels:4000},
+{brand:1,name:"D5300",sensor_mm:15.6,sensor_pixels:4000},
+{brand:1,name:"D5500",sensor_mm:15.6,sensor_pixels:4000},
+{brand:1,name:"D5600",sensor_mm:15.6,sensor_pixels:4000},
+{brand:1,name:"D50",sensor_mm:15.8,sensor_pixels:2000,prob:"no live view"},
+{brand:1,name:"D70",prob:"no live view"},
+{brand:1,name:"D70s",prob:"no live view"},
+{brand:1,name:"D80",prob:"no live view"},
+{brand:1,name:"D90",sensor_mm:15.8,sensor_pixels:2848},
+{brand:1,name:"D7000",sensor_mm:15.6,sensor_pixels:3264},
+{brand:1,name:"D7100",sensor_mm:15.6,sensor_pixels:4000},
+{brand:1,name:"D7200",sensor_mm:15.6,sensor_pixels:4000},
+{brand:1,name:"D7500",sensor_mm:15.7,sensor_pixels:3712},
+{brand:1,name:"D100",prob:"no live view"},
+{brand:1,name:"D200",prob:"no live view"},
+{brand:1,name:"D300",sensor_mm:15.8,sensor_pixels:2848},
+{brand:1,name:"D300s",sensor_mm:15.8,sensor_pixels:2848},
+{brand:1,name:"D500",sensor_mm:15.7,sensor_pixels:3712},
+{brand:1,name:"D600",sensor_mm:23.9,sensor_pixels:4016},
+{brand:1,name:"D610",sensor_mm:23.9,sensor_pixels:4016},
+{brand:1,name:"D750",sensor_mm:23.9,sensor_pixels:4016},
+{brand:1,name:"D780",sensor_mm:23.9,sensor_pixels:4024},
+{brand:1,name:"D700",sensor_mm:23.9,sensor_pixels:2832},
+{brand:1,name:"D800",sensor_mm:24,sensor_pixels:4912},
+{brand:1,name:"D800E",sensor_mm:24,sensor_pixels:4912},
+{brand:1,name:"Df",sensor_mm:23.9,sensor_pixels:3280},
+{brand:1,name:"D810",sensor_mm:24,sensor_pixels:4912},
+{brand:1,name:"D810A",sensor_mm:24,sensor_pixels:4912},
+{brand:1,name:"D850",sensor_mm:23.9,sensor_pixels:5504},
+{brand:1,name:"Z30",sensor_mm:15.7,sensor_pixels:3712},
+{brand:1,name:"Z50",sensor_mm:15.7,sensor_pixels:3712},
+{brand:1,name:"Z50ii",sensor_mm:15.7,sensor_pixels:3712},
+{brand:1,name:"Zfc",sensor_mm:15.7,sensor_pixels:3712},
+{brand:1,name:"Z5",sensor_mm:23.9,sensor_pixels:4016},
+{brand:1,name:"Zf",sensor_mm:23.9,sensor_pixels:4032},
+{brand:1,name:"Z6",sensor_mm:23.9,sensor_pixels:4032},
+{brand:1,name:"Z6ii",sensor_mm:23.9,sensor_pixels:4032},
+{brand:1,name:"Z7",sensor_mm:23.9,sensor_pixels:5504},
+{brand:1,name:"Z7ii",sensor_mm:23.9,sensor_pixels:5504},
+{brand:1,name:"Z8",sensor_mm:23.9,sensor_pixels:5504},
+{brand:1,name:"Z9",sensor_mm:23.9,sensor_pixels:5504},
+];
+
+camera_data.sort(function(a,b){return a.name.localeCompare(b.name,'en',{numeric:true})});
+
+function makeCameraRadios(brand)
+{
+  str="";
+  column=0;
+  prev="";
+  for(i=0; i<camera_data.length; i++)
+  {
+    cam = camera_data[i];
+    if (cam.brand != brand) continue;
+    column++;
+    
+    if (cam.name.substring(0,1)=='Z' && prev.substring(0,1)!='Z')
+    {
+      str+="<p>mirrorless<br>";
+      column=1;
+    }
+    str+= "<button onclick='chose_cam("+i+")'";
+    if (cam.prob) 
+      str+=" style='color:#900'";
+    else if (["D3100","D3200","D3300","D3400"].includes(cam.name))
+      str+=" style='color:#090'";
+    str+=">"+cam.name+"</button>";
+    if (column % 4 == 0) 
+      str+="<br>";
+    else
+      str+=" ";
+    prev=cam.name;
+  }
+  str+="<a href='javascript:void(0);' id='idClose2' style='float:right'>Close</a>";
+  $('#idPopup2').html(str);
+  $('#idClose2').click(close_dialog2);
+}
+
+function chose_cam(i)
+{
+  cam = camera_data[i];
+  if (cam.prob)
+  {
+    messagebox("This camera (and all the red ones) don't have live view.  You really can't use this camera. Do you have another? I recommend one of the green ones which are around USD $200 used.",null);
+    return;
+  }
+  selected_cam = cam;
+  $('#idsensor').val(cam.sensor_mm);
+  $('#idtxtMP').val((cam.sensor_pixels*cam.sensor_pixels*1.5/1000000).toFixed(1));
+  $('#idLensFL').val("50");
+  $('#idLensFnum').val("2");
+  $('#idtxtVertPixels').val(cam.sensor_pixels);
+  vertPixFocus();
+  $('#idCamDescription').text("Nikon "+cam.name);
+  $('#idCamDescription').css("color","blue");
+  close_dialog2();
+  update();
+  // now we have lots of data - let's see what minimum pixels are for a 50mm lens is, see what range of lenses will work well
+  
+  // max focal length such that any higher focal length will crop the image (no margin included) 
+  max_focal_length = 50* mirrorFOV / camFOV;
+  // minimum focal length such that we run out of pixels (no margin included)
+  min_focal_length = 50*4/ppf;
+  
+  alert("min fl: "+min_focal_length.toFixed(1)+"  max fl: "+max_focal_length.toFixed(1));
+  
+  
+  
+  /*
+var sensorPixels;  // vertical
+var lensFL;
+var sensorMM;
+var camFOV;        // ratio - 2 means F/2
+var mirrorFOV;     // ratio (2x the mirror F/# so 8.2 for an F/4.1 mirror)
+var camFOVdeg;     // in degrees
+var mirrorFOVdeg;  // in degrees
+var mirrorFOVmm;
+var cc;            // conic constant
+var mirror_diam;   // in mm
+var z8;            // null value in wyant waves of S.A.
+var ppf;           // pixels per fringe worst case  
+  */
+  
+  
+}
+
 
 function info_text(id, txt)
 {
@@ -147,7 +349,10 @@ function info_text(id, txt)
   $('#'+id).click(function(){alert(txt);})
 }
 
-info_text('idppf_info', "You need at least 4 pixels per fringe for color cameras due to the bayer filter. 2ppf on cameras with no bayer filter.");
+info_text('idppf_info', "You need at least 4 pixels per fringe for color cameras due to the bayer filter. 2ppf on bw cameras with no bayer filter.");
+info_text('idsac_info', "Must be > 100%. This is hard to explain and I hope to post a video but your lens aperture might not be big enough to fit the whole igram. The igram is a cone of light exiting the interferometer, if that cone expands too fast and you can't get the camera lens close enough to the expanding point then your camera lens will crop the igram and will be unusable.  The text will only turn red if it is estimated that you won't be able to see the whole igram even with the camera lens toughing the splitter cube.");
+
+
 /*
 setSizes();
 $(window).resize(setSizes); // call again if window is resized
@@ -165,7 +370,7 @@ lookup[steps]=255; // takes care of almost impossible case where input is 1
 
 
 let vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-console.log(vw);
+//console.log(vw);
 
 var radioPosition="mm"; // versus "inches"
 fnumchange();
@@ -176,6 +381,75 @@ MPchange();
 update();
 
 
+function synth_apeture_cropping(fl, aperture, bZoom)
+{
+  // returns sensor fov in mm.  Note that if we are cropping too much we need larger aperture lens (not necessarily larger focal length)
+  // estimates how much cropping will occur due to the inherent synthetic aperture in a Bath Interferometer
+  // fl = focal length of lens
+  // bZoom is true for zoom lenses (zoom lenses will have a heavily cropped view compared to fixed fl lenses
+  var data=[[0,0,0],[28,10,10.8],[35,19.4,14.1],[50,27.8,38.6],[85,47.2,82],[135,67.5,105]];  // fl, aperture, fov in mm
+  // find nearest 2 data points and linearly interpolate between
+  var i1,i2;
+  for(var i=0; i<data.length; i++)
+  {
+    if (data[i][0]>fl || i == data.length-1)
+    {
+      if (i==0)
+      {
+        // return first 2 points
+        i1=0;
+        i2=1;
+      }
+      else if (i == data.length-1)
+      {
+        // return last 2 points
+        i2=i;
+        i1=i-1;
+      }
+      else
+      {
+        i1=i-1;
+        i2=i;
+      }
+      break;
+    }
+  }
+  var fl1=data[i1][0];
+  var fl2=data[i2][0];
+  var ap1=data[i1][1];
+  var ap2=data[i2][1];
+  var fov1=data[i1][2];
+  var fov2=data[i2][2];
+  
+  // based on fl, linear interpolate aperture and vfov constants
+  
+  var li_aperture =  ap1*(fl2-fl)/(fl2-fl1) +  ap2*(fl-fl1)/(fl2-fl1);
+  var li_fov      = fov1*(fl2-fl)/(fl2-fl1) + fov2*(fl-fl1)/(fl2-fl1);
+  // yes I could have just found ratio of aperture/fov but this is easier for me to read 
+  // and even my data table could have stored the ratio
+  
+  var fovmm = li_fov*aperture/li_aperture; // bigger aperture gives you (roughly linear) bigger field of view
+  if (bZoom) fovmm /=2; // obviously very rough and this is from data from only 2 zoom lenses
+  return fovmm;
+}
+
+
+function choose_camera_close()
+{
+  $('#idPopup1').fadeOut(200);
+  $('#idDarken').hide();
+}
+function choose_camera()
+{
+  $('#idPopup1').fadeIn(200);
+  $('#idDarken').show();
+}
+
+
+$('#idBtnChooseCamera').css("color","blue");
+$('#idBtnChooseCamera').css("text-align","center");
+//$('#idBtnChooseCamera').css("border-radius","0.3em");
+$('#idBtnDiv').css("text-align","center");
 
 
 function col(x) // (color)
@@ -188,41 +462,61 @@ function col(x) // (color)
 
 function min(a,b) { return a<b ? a: b; }
 
+// the following are all filled in when calling update()
+var sensorPixels;  // vertical
+var lensFL;
+var sensorMM;
+var camFOV;        // ratio - 2 means F/2
+var mirrorFOV;     // ratio (2x the mirror F/# so 8.2 for an F/4.1 mirror)
+var camFOVdeg;     // in degrees
+var mirrorFOVdeg;  // in degrees
+var mirrorFOVmm;   // size of igram on camera sensor
+var cc;            // conic constant
+var mirror_diam;   // in mm
+var z8;            // null value in wyant waves of S.A.
+var ppf;           // pixels per fringe worst case
+var lensFNum;      // fnum of camera lens
+
 function update()
 {
   // calculate igram size on sensor
   
-  var sensorPixels = parseFloat(get('idtxtVertPixels').value);
-  var lensFL = parseFloat(get('idLensFL').value);
+  sensorPixels = parseFloat(get('idtxtVertPixels').value);
+  lensFL = parseFloat(get('idLensFL').value);
 
-  var sensorMM = parseFloat(get('idsensor').value);
-  var camFOV = lensFL/sensorMM;
-  var camFOVdeg = Math.atan(1/camFOV/2)*2*180/3.14159;
-  var mirrorFNum = parseFloat(get('idfnumtxt').value);
-  var mirrorFOV = mirrorFNum*2;
-  var mirrorFOVdeg = Math.atan(1/mirrorFOV/2)*2*180/3.14159;
-  var mirrorFOVmm = camFOV/mirrorFOV*sensorMM;
-  var cc = parseFloat(get('idCC').value);
-  var mirror_diam = get('idDiamtxt').value;
+  sensorMM = parseFloat(get('idsensor').value);
+  camFOV = lensFL/sensorMM;
+  camFOVdeg = Math.atan(1/camFOV/2)*2*180/3.14159;
+  mirrorFNum = parseFloat(get('idfnumtxt').value);
+  mirrorFOV = mirrorFNum*2;
+  mirrorFOVdeg = Math.atan(1/mirrorFOV/2)*2*180/3.14159;
+  mirrorFOVmm = camFOV/mirrorFOV*sensorMM;
+  cc = parseFloat(get('idCC').value);
+  mirror_diam = get('idDiamtxt').value;
   if (get('idin').checked)
     mirror_diam *=25.4;
-    
+  lensFNum = $('#idLensFnum').val();
     
     
   var wl=650;
-  var z8 = cc*(mirror_diam/(wl/1000000))/(3072 * mirrorFNum * mirrorFNum * mirrorFNum);
+  z8 = cc*(mirror_diam/(wl/1000000))/(3072 * mirrorFNum * mirrorFNum * mirrorFNum);
   //if (radioPosition == "inches")
   
-  get('idMirrorFOV').innerHTML=mirrorFOVdeg.toFixed(0)+" deg";
+  get('idMirrorFOV').innerHTML=mirrorFOVdeg.toFixed(1)+" deg";
   if (mirrorFOVdeg > camFOVdeg)
   {
       suggested_camera_focal_length = mirrorFOV*sensorMM;
-      get('idCamFOV').innerHTML=camFOVdeg.toFixed(0)+" deg (need cam lens f.l. < "+suggested_camera_focal_length.toFixed(0)+"mm)";
+      get('idCamFOV').innerHTML=camFOVdeg.toFixed(1)+" deg (need cam lens f.l. < "+suggested_camera_focal_length.toFixed(0)+"mm)";
       get('idCamFOV').style.color='red';
+  }
+  else if (mirrorFOVdeg*1.2 > camFOVdeg)
+  {
+      get('idCamFOV').innerHTML=camFOVdeg.toFixed(1)+" deg (Field of View) (shorter f.l. lens might be better)";
+      get('idCamFOV').style.color='#ec0';
   }
   else
   {
-      get('idCamFOV').innerHTML=camFOVdeg.toFixed(0)+" deg (Field of View)";
+      get('idCamFOV').innerHTML=camFOVdeg.toFixed(1)+" deg (Field of View)";
       get('idCamFOV').style.color='black';
   }
   
@@ -254,14 +548,7 @@ function update()
   // sensor fov
   pixW = sensorMM*camera_ratio*scale;
   pixH = sensorMM*scale;
-  /*
-  ctx.moveTo(xoff - pixW/2,yoff-pixH/2);
-  ctx.lineTo(xoff + pixW/2,yoff-pixH/2);
-  ctx.lineTo(xoff + pixW/2,yoff+pixH/2);
-  ctx.lineTo(xoff - pixW/2,yoff+pixH/2);
-  ctx.lineTo(xoff - pixW/2,yoff-pixH/2);
-  ctx.stroke();
-  */
+
   ctx.fillStyle="black";
   ctx.fillRect(xoff - pixW/2, yoff-pixH/2, pixW, pixH);
 
@@ -306,11 +593,37 @@ z8  def  tilt
     }
     
   }
-
-    ctx.font = '20px sans';
-    ctx.fillStyle="rgb(130,130,130)";
-    ctx.fillText('Camera FOV', xoff-pixW/2+5, yoff-pixH/2+25); // 25 is font height plus margin, 5 is left margin
+  var sac = synth_apeture_cropping(lensFL, lensFL/lensFNum, false);
+  var sac_percent = sac/mirrorFOVmm*100;
+  if (sac >= sensorMM*1.5)
+  {
+    // no vigneting due to sac
+    $('#idsac0').hide();  
+  }
+  else
+  {
+    $('#idsac0').show();  
+    $('#idsac').text(""+sac_percent.toFixed(0)+"%");
+    if (sac_percent < 100)
+      $('#idsac').css("color", "red");
+    else if (sac_percent < 120)
+      $('#idsac').css("color", "#ec0");
+    else
+      $('#idsac').css("color", "black");
+    // draw blue aperture circle
+    if (sac_percent >= 100)
+      ctx.strokeStyle="rgb(90,90,255)";
+    else
+      ctx.strokeStyle="rgb(0,0,255)";
+    ctx.beginPath();
+    ctx.arc(xoff, yoff, sac*scale/2, 0, 2*Math.PI); // divide by 2 because it's radius, not diameter
+    ctx.stroke();    
+  }
   
+  ctx.font = '20px sans';
+  ctx.fillStyle="rgb(130,130,130)";
+  ctx.fillText('Camera FOV', xoff-pixW/2+5, yoff-pixH/2+25); // 25 is font height plus margin, 5 is left margin
+
   
 }
 
@@ -692,6 +1005,99 @@ function updateDiam()
     flchange();
   }
 }
+
+function recommend()
+{
+}
+function nikon()
+{
+  makeCameraRadios(1);
+  $('#idPopup2').fadeIn(200);
+  $('#idPopup1').fadeOut(200);
+}
+function canon()
+{
+}
+function cell()
+{
+  choose_camera_close();
+  messagebox("Cell phones will not work or might just barely work. They are too hard to align and have too small a hole to let the igram into even if the phone lens is touching the splitter. You would also need an extra small splitter (15mm is much too big) and a smaller than typical laser beam, and a shorter focal length than usual diverger (no idea where to get divergers < 6mm focal length). You'll need a special app that gives you precise focus control (I don't think that exists on apple phones and 'tap to focus' will not work for igrams). You'll have to fill in camera and lens parameters in yourself.",other_continue);
+  $('#idCamDescription').text("cell");
+  $('#idCamDescription').css("color","black");
+}
+function rasp()
+{
+  choose_camera_close();
+  messagebox("This feature isn't filled out yet so for now I'll recommend you avoid raspi because the lenses tend to be very cheap (<$20 new) and I don't trust that the lenses have low enough distortion for good igram results. Except maybe the LN06 so I filled in the data for ras pi hq with LN06.",other_continue);
+  $('#idsensor').val("4.712");
+  $('#idtxtMP').val("12.3");
+  $('#idLensFL').val("16");
+  $('#idLensFnum').val("1.4");
+  $('#idtxtVertPixels').val("3040");
+  vertPixFocus();
+  $('#idCamDescription').text("Ras Pi with LN06 lens");
+  $('#idCamDescription').css("color","blue");
+  update();
+}
+function webcam()
+{
+  choose_camera_close();
+  messagebox("This feature isn't filled out yet so for now I'll recommend you avoid webcams but you can just manually fill in the camera info.",other_continue);
+  $('#idCamDescription').text("webcam");
+  $('#idCamDescription').css("color","black");  
+}
+function other_continue()
+{
+  $('#idBtnChooseCamera').css("color","black");
+  $('#idBtnChooseCamera').text("click to change camera");
+}
+function other()
+{
+  choose_camera_close();
+  messagebox("Okay then please just fill in the camera and lens information.",other_continue);
+  $('#idCamDescription').text("other");
+  $('#idCamDescription').css("color","black");  
+}
+
+var msgbox_callback;
+function messagebox(txt,callback)
+{
+  msgbox_callback=callback;
+  $('#idSpanMsgBox').text(txt);
+  $('#idMsgBox').fadeIn(200);
+  $('#idDarken').show();
+}
+function close_msgbox()
+{
+  $('#idMsgBox').fadeOut(200);
+  if (msgbox_callback)
+    msgbox_callback();
+  $('#idDarken').hide();
+}
+
+function close_dialog2()
+{
+  $('#idPopup2').fadeOut(200);
+  $('#idDarken').hide();
+}
+
+$('#idBtnChooseCamera').click(choose_camera);
+$('#idClose1').click(choose_camera_close);
+
+$('#idBtnRec').click(recommend);
+$('#idBtnNik').click(nikon);
+$('#idBtnCan').click(canon);
+$('#idBtnCel').click(cell);
+$('#idBtnRas').click(rasp);
+$('#idBtnWeb').click(webcam);
+$('#idBtnOth').click(other);
+
+$('#idCloseMB').click(close_msgbox);
+
+
+
+
+
 </script>
 
 </body>
