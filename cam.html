@@ -180,7 +180,7 @@ Estimated portion of igram available after lens cropping (blue circle in diagram
 <span id='idsac'></span>&nbsp;<img src="i.png" class="info" title="abc" id='idsac_info'><br></span>
 </div>
 <br>
-<canvas id='idCanvas' width="500" height="300" '></canvas>
+<canvas id='idCanvas' width="500" height="602" '></canvas> <!-- 300 for top diagram, 300 for bottom, 2 for gap between -->
 
 
 <script src="jquery-3.7.1.min.js"></script> 
@@ -527,8 +527,8 @@ function update()
   ctx = t_can.getContext('2d');
   
   canvas_width = t_can.clientWidth;
-  canvas_height = t_can.clientHeight;
-  ctx.fillStyle = 'rgb(255,255,255)'; // fill background color
+  canvas_height = (t_can.clientHeight-2)/2;
+  ctx.fillStyle = 'rgb(255,255,255)'; // fill background color white
   ctx.fillRect(0, 0, canvas_width, canvas_height);
   ctx.lineWidth=1;
   ctx.strokeStyle="rgb(0,0,0)";
@@ -559,6 +559,7 @@ function update()
   ctx.arc(xoff, yoff, mirrorFOVmm*scale/2, 0, 2*Math.PI); // divide by 2 because it's radius, not diameter
   ctx.stroke();
   
+  pixels = Math.round(mirrorFOVmm*scale,0);
   if (mirrorFOVdeg / camFOVdeg < 1)
   {
   /*
@@ -571,7 +572,6 @@ z8  def  tilt
     tilt=-z8*7+4;
     defocus=-z8*1.2+.3;
     astig=0;
-    pixels = Math.round(mirrorFOVmm*scale,0);
     oversample=2000/pixels*Math.abs(z8)/10;
     if (oversample > 10) oversample=10; // otherwise it gets too slow on cpu
     if (oversample < 1) oversample=1;
@@ -624,7 +624,18 @@ z8  def  tilt
   ctx.fillStyle="rgb(130,130,130)";
   ctx.fillText('Camera FOV', xoff-pixW/2+5, yoff-pixH/2+25); // 25 is font height plus margin, 5 is left margin
 
+  // now zoom window in lower half
   
+
+  zoom = 2*canvas_height/pixels;
+  if (zoom<5) zoom=5;// 5x minimum
+  
+  // green zoom box in upper window
+  ctx.fillStyle="rgb(0,0,90)";
+  ctx.fillRect(0, canvas_height+2, canvas_width, canvas_height);
+  
+  fringes(ctx, pixels*zoom, 20, 302,
+                  z8,tilt,defocus,astig,655, 1,500,300);
 }
 
 function nmToRGB(wavelength)
@@ -671,14 +682,17 @@ function bytediv(a,b)
 }
 
 
-function fringes(ctx,pixels,offsetX,offsetY,z8,tilt,defocus,astig,wavelength, oversample)
+function fringes(ctx,pixels,offsetX,offsetY,z8,tilt,defocus,astig,wavelength, oversample,img_width,img_height)
 {
     // if oversample is for example 2 then we calculate average of 4X (2 squared) pixels per actual pixel for anti-aliasing
     oversample = Math.round(oversample,0); // must be integer
     var startTime = new Date();
 
-    
-    var id = ctx.createImageData(pixels,pixels);
+    var id;
+    if (img_width>0)
+      id = ctx.createImageData(img_width,img_height);
+    else
+      id = ctx.createImageData(pixels,pixels);
     var pix = id.data;
 
     //var t = document.getElementById('idlogging');
@@ -706,10 +720,14 @@ function fringes(ctx,pixels,offsetX,offsetY,z8,tilt,defocus,astig,wavelength, ov
     var c_tilt = tilt;
     var c_def = defocus;//Math.sqrt(3);
     var c_astig = astig;//astig*Math.sqrt(6);
-    var pixels2 = pixels/2;
-    
-    
-    pix[4*pixels*pixels-1]=255; // thought this might save time as it might create the array all at once?
+    var pixels2 = pixels/2; // radius of igram in pixels
+    /*
+    if (img_width>0)
+      pix[4*img_width*img_height-1]=255; // thought this might save time as it might create the array all at once?
+    else
+      pix[4*pixels*pixels-1]=255; // thought this might save time as it might create the array all at once?
+*/
+
     /*pix[1]=0;
     pix[2]=0;
     pix[3]=255;*/
@@ -720,16 +738,24 @@ function fringes(ctx,pixels,offsetX,offsetY,z8,tilt,defocus,astig,wavelength, ov
     var oversample2 = oversample*oversample;
     var xunit= -1 - xyinc; // these go from -1 to +1
     var yunit= -1 - xyinc;
+    if (img_width>0)
+      yunit=-img_height/pixels2;
     var xx=0;
     var yy=0;
     var z=0;
+    var xlimit=pixels;
+    if (img_width>0)
+      xlimit=img_width;
+    var ylimit=pixels;
+    if (img_height>0)
+      ylimit=img_height;
     
-    for(var y=0; y<pixels; y++)
+    for(var y=0; y<ylimit; y++)
     {
       yunit += xyinc;
       xunit= -1 - xyinc;
       yy = yunit*yunit;
-      for(var x=0; x<pixels; x++)
+      for(var x=0; x<xlimit; x++)
       {
          xunit += xyinc;
          xx = xunit*xunit;
