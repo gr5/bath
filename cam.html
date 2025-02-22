@@ -58,7 +58,22 @@ version
        background-color:black;
        z-index:5;
   }  
-   button {margin: 0.15em;}
+  button {margin: 0.15em;}
+  .graybox {
+    display: inline-block;
+    border:1px solid black;
+    border-radius:10px;
+    padding:5px;
+    background-color:#E0E0E0;
+  }
+  h3 {
+    margin-top:15px;
+    margin-bottom:15px;
+    }
+  .cls_null {
+    color:gray;
+    font-size: smaller;
+  }
 }
 
   </style>
@@ -104,7 +119,8 @@ version
 </tr>
 <tr>
  <td colspan=3>
-   Conic constant <input type="text" size=2 value=-1 id='idCC' onKeyUp="update()"><br>(-1 for parabolic mirror, 0 for spherical)
+   Conic constant <input type="text" size=2 value=-1 id='idCC' onKeyUp="update()">&nbsp;<span id='idNull' class='cls_null'></span><br>
+   (-1 for parabolic mirror, 0 for spherical)
  </td>
 </tr>
 </table>
@@ -112,7 +128,7 @@ version
 
 
 
-<div style="display: inline-block;border:1px solid black;border-radius:10px;padding:5;background-color:#E0E0E0;">
+<div class='graybox'>
 <center><h3>Camera</h3></center>
 <div id='idBtnDiv'><button id='idBtnChooseCamera' type='button'>Please click here to choose a camera!</button><span id='idCamDescription'></span></div><p>
 
@@ -145,9 +161,6 @@ version
 
 Camera sensor vertical size: <input type="text"  id="idsensor" value="16" size=3 onKeyUp="update()"> mm
 <br>
-Camera lens focal length: <input type="text"  id="idLensFL" value="50" size=3 onKeyUp="update()"> mm &nbsp;&nbsp; 
-Lens f/#: <input type="text"  id="idLensFnum" value="1.8" size=3 onKeyUp="update()">
-<br>
 
 <input type='radio' name='vertSensor' id='idradMegaPix' value='mp' onclick="radMPclick(this)" checked>
 <label for="idradMegaPix" id='idLabelMP'>
@@ -164,6 +177,15 @@ Lens f/#: <input type="text"  id="idLensFnum" value="1.8" size=3 onKeyUp="update
   Camera sensor vertical pixels: 
 </label>
 <input type="text"  id="idtxtVertPixels" value="2000" size=4 onKeyUp='vertPixChange()' onfocus='vertPixFocus()'>
+</div>
+
+<p>
+
+<div class='graybox'>
+<center><h3>Camera Lens</h3></center>
+<center><button id='idBtnChooseLens' type='button'>Please click here to choose a lens!</button><span id='idLensDescription'></span></center><p style="margin-bottom:5px;">
+Camera lens focal length: <input type="text"  id="idLensFL" value="50" size=3 onKeyUp="update()"> mm &nbsp;&nbsp; 
+Lens f/#: <input type="text"  id="idLensFnum" value="1.8" size=3 onKeyUp="update()">
 </div>
 
 
@@ -258,75 +280,75 @@ var camera_data=
 {brand:1,name:"Z9",sensor_mm:23.9,sensor_pixels:5504},
 
 
-{brand:2,name:"EOS-1DC",sensor_mm:24,mp:17.9},
-{brand:2,name:"EOS-1DX",sensor_mm:24,mp:17.9},
-{brand:2,name:"EOS-1DX Mark ii",sensor_mm:23.9,mp:20},
-{brand:2,name:"EOS-1DX Mark iii",sensor_mm:24,mp:20},
+{brand:2,name:"EOS 1DC",sensor_mm:24,mp:17.9},
+{brand:2,name:"EOS 1DX",sensor_mm:24,mp:17.9},
+{brand:2,name:"EOS 1DX Mark ii",sensor_mm:23.9,mp:20},
+{brand:2,name:"EOS 1DX Mark iii",sensor_mm:24,mp:20},
 
-{brand:2,name:"EOS-1DS",prob:"no live view"},
-{brand:2,name:"EOS-1DS Mark ii",prob:"no live view"},
-{brand:2,name:"EOS-1DS Mark iii",sensor_mm:24,mp:21},
-{brand:2,name:"EOS-1DS Mark iv",sensor_mm:18.6,sensor_pixels:3264},
+{brand:2,name:"EOS 1DS",prob:"no live view"},
+{brand:2,name:"EOS 1DS Mark ii",prob:"no live view"},
+{brand:2,name:"EOS 1DS Mark iii",sensor_mm:24,mp:21},
+{brand:2,name:"EOS 1DS Mark iv",sensor_mm:18.6,sensor_pixels:3264},
 
-{brand:2,name:"EOS-1D",prob:"no live view"},
-{brand:2,name:"EOS-1D Mark ii",prob:"no live view"},
-{brand:2,name:"EOS-1D Mark ii N",prob:"no live view"},
-{brand:2,name:"EOS-1D Mark III",sensor_mm:18.7,sensor_pixels:2594},
+{brand:2,name:"EOS 1D",prob:"no live view"},
+{brand:2,name:"EOS 1D Mark ii",prob:"no live view"},
+{brand:2,name:"EOS 1D Mark ii N",prob:"no live view"},
+{brand:2,name:"EOS 1D Mark III",sensor_mm:18.7,sensor_pixels:2594},
 
-{brand:2,name:"EOS-5D",prob:"no live view"},
-{brand:2,name:"EOS-5D Mark ii",sensor_mm:24,mp:21},
-{brand:2,name:"EOS-5D Mark iii",sensor_mm:24,mp:22.1},
-{brand:2,name:"EOS-5D Mark iv",sensor_mm:24,mp:30.1},
-{brand:2,name:"EOS-5DS",sensor_mm:24,mp:50.3},
-{brand:2,name:"EOS-5DS R",sensor_mm:24,mp:50.3},
+{brand:2,name:"EOS 5D",prob:"no live view"},
+{brand:2,name:"EOS 5D Mark ii",sensor_mm:24,mp:21},
+{brand:2,name:"EOS 5D Mark iii",sensor_mm:24,mp:22.1},
+{brand:2,name:"EOS 5D Mark iv",sensor_mm:24,mp:30.1},
+{brand:2,name:"EOS 5DS",sensor_mm:24,mp:50.3},
+{brand:2,name:"EOS 5DS R",sensor_mm:24,mp:50.3},
 
-{brand:2,name:"EOS-6D",sensor_mm:24,mp:20},
-{brand:2,name:"EOS-6D Mark ii",sensor_mm:24,mp:26},
+{brand:2,name:"EOS 6D",sensor_mm:24,mp:20},
+{brand:2,name:"EOS 6D Mark ii",sensor_mm:24,mp:26},
 
-{brand:2,name:"EOS-7D",sensor_mm:14.9,mp:17.9},
-{brand:2,name:"EOS-7D Mark ii",sensor_mm:15,mp:20.0},
+{brand:2,name:"EOS 7D",sensor_mm:14.9,mp:17.9},
+{brand:2,name:"EOS 7D Mark ii",sensor_mm:15,mp:20.0},
 
-{brand:2,name:"EOS-70D",sensor_mm:15,mp:20},
+{brand:2,name:"EOS 70D",sensor_mm:15,mp:20},
 
-{brand:2,name:"EOS-77D",sensor_mm:14.9,mp:24},
+{brand:2,name:"EOS 77D",sensor_mm:14.9,mp:24},
 
-{brand:2,name:"EOS-80D",sensor_mm:14.9,mp:24},
-{brand:2,name:"EOS-90D",sensor_mm:14.8,mp:32.3},
+{brand:2,name:"EOS 80D",sensor_mm:14.9,mp:24},
+{brand:2,name:"EOS 90D",sensor_mm:14.8,mp:32.3},
 
-{brand:2,name:"EOS-60Da",sensor_mm:14.9,sensor_pixels:3456},
-{brand:2,name:"EOS-60D",sensor_mm:14.9,sensor_pixels:3456},
-{brand:2,name:"EOS-50D",sensor_mm:14.9,sensor_pixels:3168},
-{brand:2,name:"EOS-40D",sensor_mm:14.8,sensor_pixels:2592},
-{brand:2,name:"EOS-30D",prob:"no live view"},
-{brand:2,name:"EOS-20D",prob:"no live view"},
-{brand:2,name:"EOS-20Da",sensor_mm:15,sensor_pixels:2344},
-{brand:2,name:"EOS-10D",prob:"no live view"},
-{brand:2,name:"EOS REBEL SL1/EOS 100D",sensor_mm:14.9,sensor_pixels:3456},
-{brand:2,name:"EOS REBEL SL2/EOS 200D",sensor_mm:14.9,mp:24},
-{brand:2,name:"EOS REBEL SL3/EOS 250D",sensor_mm:14.9,mp:24},
-{brand:2,name:"EOS DIGITAL REBEL / EOS 300D",prob:"no live view"},
+{brand:2,name:"EOS 60Da",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS 60D",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS 50D",sensor_mm:14.9,sensor_pixels:3168},
+{brand:2,name:"EOS 40D",sensor_mm:14.8,sensor_pixels:2592},
+{brand:2,name:"EOS 30D",prob:"no live view"},
+{brand:2,name:"EOS 20D",prob:"no live view"},
+{brand:2,name:"EOS 20Da",sensor_mm:15,sensor_pixels:2344},
+{brand:2,name:"EOS 10D",prob:"no live view"},
+{brand:2,name:"EOS SL1/100D",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS SL2/200D",sensor_mm:14.9,mp:24},
+{brand:2,name:"EOS SL3/250D",sensor_mm:14.9,mp:24},
+{brand:2,name:"EOS DIGITAL REBEL/300D",prob:"no live view"},
 
 
-{brand:2,name:"EOS REBEL XT/EOS 350D",prob:"no live view"},
-{brand:2,name:"EOS REBEL XTi/EOS 400D",prob:"no live view"},
+{brand:2,name:"EOS XT/350D",prob:"no live view"},
+{brand:2,name:"EOS XTi/400D",prob:"no live view"},
 
-{brand:2,name:"EOS REBEL XSi/EOS 450D",sensor_mm:14.8,mp:12.2},
-{brand:2,name:"EOS REBEL T1I/EOS 500D",sensor_mm:14.9,sensor_pixels:3168},
-{brand:2,name:"EOS REBEL T2i/EOS 550D",sensor_mm:14.9,sensor_pixels:3456},
-{brand:2,name:"EOS REBEL T3i/EOS 600D",sensor_mm:14.9,sensor_pixels:3456},
-{brand:2,name:"EOS REBEL T4i/EOS 650D",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS XSi/450D",sensor_mm:14.8,mp:12.2},
+{brand:2,name:"EOS T1I/500D",sensor_mm:14.9,sensor_pixels:3168},
+{brand:2,name:"EOS T2i/550D",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS T3i/600D",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS T4i/650D",sensor_mm:14.9,sensor_pixels:3456},
 
-{brand:2,name:"EOS REBEL T5i/EOS 700D",sensor_mm:14.9,sensor_pixels:3456},
-{brand:2,name:"EOS REBEL T6i/EOS 750D",sensor_mm:14.9,mp:24},
-{brand:2,name:"EOS REBEL T6S/EOS 760D",sensor_mm:14.9,mp:24},
-{brand:2,name:"EOS REBEL T7i/EOS 800D",sensor_mm:14.9,mp:24},
-{brand:2,name:"EOS REBEL T8i/EOS 850D",sensor_mm:14.9,mp:24},
+{brand:2,name:"EOS T5i/700D",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS T6i/750D",sensor_mm:14.9,mp:24},
+{brand:2,name:"EOS T6S/760D",sensor_mm:14.9,mp:24},
+{brand:2,name:"EOS T7i/800D",sensor_mm:14.9,mp:24},
+{brand:2,name:"EOS T8i/850D",sensor_mm:14.9,mp:24},
 
-{brand:2,name:"EOS REBEL T3/EOS 1100D",sensor_mm:14.8,mp:12.2},
-{brand:2,name:"EOS REBEL T5/EOS 1200D",sensor_mm:14.9,sensor_pixels:3456},
-{brand:2,name:"EOS REBEL T6/EOS 1300D",sensor_mm:14.9,sensor_pixels:3456},
-{brand:2,name:"EOS REBEL T7/EOS 2000D",sensor_mm:14.9,mp:24},
-{brand:2,name:"EOS REBEL T100/EOS 4000D",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS T3/1100D",sensor_mm:14.8,mp:12.2},
+{brand:2,name:"EOS T5/1200D",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS T6/1300D",sensor_mm:14.9,sensor_pixels:3456},
+{brand:2,name:"EOS T7/2000D",sensor_mm:14.9,mp:24},
+{brand:2,name:"EOS T100/4000D",sensor_mm:14.9,sensor_pixels:3456},
 
 {brand:2,name:"EOS M",sensor_mm:14.9,sensor_pixels:3456},
 {brand:2,name:"EOS M2",sensor_mm:14.9,sensor_pixels:3476},
@@ -357,7 +379,7 @@ var camera_data=
 ];
 
 camera_data.sort(function(a,b){return a.name.localeCompare(b.name,'en',{numeric:true})});
-
+console.log(camera_data.length);
 /*
 for(i=0; i<camera_data.length; i++)
 {
@@ -391,7 +413,12 @@ function makeCameraRadios(brand)
     str+= "<button onclick='chose_cam("+i+")'";
     if (cam.prob) 
       str+=" style='color:#900'";
-    else if (["D3100","D3200","D3300","D3400"].includes(cam.name))
+    else if (["D3100","D3200","D3300","D3400"].includes(cam.name) ||
+       cam.name.indexOf("1100D")>=0 ||
+       cam.name.indexOf("1200D")>=0 ||
+       cam.name.indexOf("1300D")>=0 ||
+       cam.name.indexOf("2000D")>=0
+    )
       str+=" style='color:#090'";
     str+=">"+cam.name+"</button>";
     if (column % 4 == 0) 
@@ -444,6 +471,8 @@ function chose_cam(i)
   $('#idCamDescription').css("color","blue");
   close_dialog2();
   update();
+  $('#idBtnChooseCamera').css("color","black");
+  $('#idBtnChooseCamera').text("click to change camera");
   // now we have lots of data - let's see what minimum pixels are for a 50mm lens is, see what range of lenses will work well
   
   // max focal length such that any higher focal length will crop the image (no margin included) 
@@ -632,7 +661,8 @@ function update()
     
   var wl=650;
   z8 = cc*(mirror_diam/(wl/1000000))/(3072 * mirrorFNum * mirrorFNum * mirrorFNum);
-  //if (radioPosition == "inches")
+  $('#idNull').text("SA Null "+z8.toFixed(1)+" Waves");
+  
   
   get('idMirrorFOV').innerHTML=mirrorFOVdeg.toFixed(1)+" deg";
   if (mirrorFOVdeg > camFOVdeg)
