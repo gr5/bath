@@ -1,16 +1,8 @@
 <!DOCTYPE html>
 <!--
 todo:
-measure synthetic mirror cropping for all my lenses including zooms at 3 positions
-redo yesterday's experiment with 
-changing camera sensor vertical pixels doesn't update anything
 Shouldn't recalculate igram when nothing changed
-Add camera and lens chooser
-Add info about lens cropping
 test on safari, firefox
-add null value
-add zoom inset
-worry about minimum focus distance of lens
 
 
 
@@ -200,6 +192,8 @@ Pixels per fringe (smallest fringe):
 <span id='idsac0'>
 Estimated portion of igram available after lens cropping (blue circle in diagram below):
 <span id='idsac'></span>&nbsp;<img src="i.png" class="info" title="abc" id='idsac_info'><br></span>
+<span id='idsac1'></span>
+<span id='idNote'></span>
 </div>
 <br>
 <canvas id='idCanvas' width="500" height="602" '></canvas> <!-- 300 for top diagram, 300 for bottom, 2 for gap between -->
@@ -432,9 +426,11 @@ function makeCameraRadios(brand)
   $('#idClose2').click(close_dialog2);
 }
 
+var chosen_cam=false;
 function chose_cam(i)
 {
   cam = camera_data[i];
+  chosen_cam=cam;
   if (cam.prob)
   {
     messagebox("This camera (and all the red ones) don't have live view.  You really can't use this camera. Do you have another? I recommend one of the green ones which are around USD $200 used.",null);
@@ -480,7 +476,7 @@ function chose_cam(i)
   // minimum focal length such that we run out of pixels (no margin included)
   min_focal_length = 50*4/ppf;
   
-  alert("min fl: "+min_focal_length.toFixed(1)+"  max fl: "+max_focal_length.toFixed(1));
+  //alert("min fl: "+min_focal_length.toFixed(1)+"  max fl: "+max_focal_length.toFixed(1));
   
   
   
@@ -606,6 +602,121 @@ function choose_camera()
   $('#idDarken').show();
 }
 
+function get_vert_pixels(i)
+{
+  var cam=camera_data[i];
+  if (cam.sensor_pixels)
+    return cam.sensor_pixels;
+  else
+    return Math.round(Math.sqrt(cam.mp*1000000/1.5));
+}
+
+function choose_lens()
+{
+  $('#idLensFL').val('50');
+  $('#idLensFnum').val('2');
+  update();
+  while (mirrorFOVdeg / camFOVdeg >= 1)
+  {
+    // ppf calculations not done because igram doesn't fit in FOV so start by shrinking lens
+    $('#idLensFL').val($('#idLensFL').val()/2);
+    update();
+  }
+  // max focal length such that any higher focal length will crop the image (no margin included) 
+  max_focal_length = lensFL* mirrorFOV / camFOV;
+  // minimum focal length such that we run out of pixels (no margin included)
+  min_focal_length = lensFL*4/ppf;
+  
+  str="To achieve 4 pixels per fringe, absolute <b>minimum focal length</b>: "+min_focal_length.toFixed(1)+"<br>";
+  str+="To keep igram within vertical field of view <b>maximum focal length</b>: "+max_focal_length.toFixed(0)+"<br>";
+  
+  // are there any lenses in this range?
+  
+  if (min_focal_length > max_focal_length)
+  {
+    pixels_needed = Math.round(sensorPixels*min_focal_length/max_focal_length);
+    str+="No such lens exists. You need a camera with at least "+pixels_needed+" vertical pixels.<br>";
+    var qty=0;
+    for (i=0; i<camera_data.length; i++)
+      if (get_vert_pixels(i) > pixels_needed)
+        qty++;
+      else
+       console.log(camera_data[i].name);
+    str+=""+qty+" cameras in my database have that many pixels.<br>Please solve this issue before choosing a lens.";
+    messagebox(str,null,true);
+    return;
+  }
+  
+  if (min_focal_length >= 35 && sensorMM > 12 && sensorMM < 18)
+  {
+    var min_pixels= min_focal_length/40*sensorMM;
+    if (sensorMM>12 && sensorMM < 23 && min_pixels < 3300) 
+      str+="It might be probably cheaper to switch to a camera with more megapixels so that you can use a (much cheaper) 50mm lens.<br>";
+  }
+  
+  if (min_focal_length > 40 && sensorMM > 23)
+  {
+    var min_pixels= min_focal_length/40*sensorMM;
+    if (min_pixels > 4000 && min_pixels < 6000)
+      str="I didn't do all the math, but there's a good chance it's cheaper to switch from full frame to a camera with a smaller sensor because it will probably save you a lot of money on the lens if you don't already have the right one.<br>";
+  }
+  
+  var sac = synth_apeture_cropping(lensFL, lensFL/lensFNum, false);
+  var sac_percent = sac/mirrorFOVmm*100;  
+
+  var bSolutionFound=false;
+  // 50mm work?
+  if (min_focal_length < 35 && max_focal_length > 55)
+  {
+    bSolutionFound=true;
+    if (sac_percent > 150)
+      str+="50mm F/2 lens will work and it's the cheapest possible lens<br>";
+    else if (sac_percent > 110)
+      str+="50mm F/2 lens will barely work but I recommend you get a wider aperture such as F/1.8 so the lens doesn't have to be right up against the splitter.<br>";
+    else if (sac_percent > 60)
+    {
+      var fnum_desired = sac_percent/100*2; // *2 because F/2 was used to calculate the sac
+      str+="50mm focal length works but you need an aperture of F/"+fnum_desired.toFixed(2)+" and at that f/# lens it would need to touch the splitter. <br>";
+    }
+  }
+  else if (max_focal_length <= 55 && max_focal_length > 40 && min_focal_length < 25)
+  {
+    // 35mm?
+    $('#idLensFL').val('35');
+    $('#idLensFnum').val('1.8');
+    update();
+    sac = synth_apeture_cropping(lensFL, lensFL/lensFNum, false);
+    sac_percent = sac/mirrorFOVmm*100;     
+    if (sac > 150)
+    {
+      str+="35mm F/1.8 will work and not very expensive.<br>";
+      bSolutionFound=true;
+    }
+    else
+    {
+      var fnum_desired = sac_percent/100*1.8; // *1.8 because F/1.8 was used to calculate the sac
+      str+="35mm works but you need an aperture of F/"+fnum_desired.toFixed(2)+" and at that f/# lens it would need to touch the splitter<br>";
+    }
+  }
+  
+  if (bSolutionFound == false)
+  {
+    str+="<b>Decrease lens min</b> fl by increasing camera resolution.<br>";
+    str+="<b>Increase lens max</b> fl (and also min) by using a camera with a larger sensor size<br>"; 
+  }
+
+
+if (min_focal_length*2 > max_focal_length)
+  {
+    
+  }
+  
+  // deal with sac (synth aperture cropping)
+  
+  
+  messagebox(str,null,true);
+}
+
 
 $('#idBtnChooseCamera').css("color","blue");
 $('#idBtnChooseCamera').css("text-align","center");
@@ -658,7 +769,15 @@ function update()
     mirror_diam *=25.4;
   lensFNum = $('#idLensFnum').val();
     
-    
+  $('#idsac1').html('');
+  $('#idNote').html('');
+  
+  var mirrorROC = $('#idfltxt').val()*2;
+  if (radioPosition != "mm")
+    mirrorROC*=25.4;
+  if (mirrorROC < 300)
+     $('#idNote').html("<br><font color='#ec0'>Your focal length is very short. Some camera lenses can't focus this short.  Please check for this issue yourself.  The camera lens needs to be able to focus at a distance of "+(mirrorROC/10).toFixed(0)+" cm</font>");
+  
   var wl=650;
   z8 = cc*(mirror_diam/(wl/1000000))/(3072 * mirrorFNum * mirrorFNum * mirrorFNum);
   $('#idNull').text("SA Null "+z8.toFixed(1)+" Waves");
@@ -690,15 +809,15 @@ function update()
   
   canvas_width = t_can.clientWidth;
   canvas_height = (t_can.clientHeight-2)/2;
-  ctx.fillStyle = 'rgb(255,255,255)'; // fill background color white
+  
+  //
+  // draw background top half white
+  //
+  
+  ctx.fillStyle = 'rgb(255,255,255)';
   ctx.fillRect(0, 0, canvas_width, canvas_height);
-  ctx.lineWidth=1;
-  ctx.strokeStyle="rgb(0,0,0)";
-  ctx.beginPath();
   
   camera_ratio=3/2; // width/height
-  
-  
   
   width = min(canvas_width, canvas_height*camera_ratio);
   height = width/camera_ratio;
@@ -711,11 +830,17 @@ function update()
   pixW = sensorMM*camera_ratio*scale;
   pixH = sensorMM*scale;
 
+  //
+  // draw sensor rectangle black
+  //
+  
   ctx.fillStyle="black";
   ctx.fillRect(xoff - pixW/2, yoff-pixH/2, pixW, pixH);
 
-    
-  // igram
+  // 
+  // draw red circle representing igram
+  //
+  ctx.lineWidth=1;
   ctx.strokeStyle="rgb(255,0,0)";
   ctx.beginPath();
   ctx.arc(xoff, yoff, mirrorFOVmm*scale/2, 0, 2*Math.PI); // divide by 2 because it's radius, not diameter
@@ -737,6 +862,11 @@ z8  def  tilt
     oversample=2000/pixels*Math.abs(z8)/10;
     if (oversample > 10) oversample=10; // otherwise it gets too slow on cpu
     if (oversample < 1) oversample=1;
+    
+    //
+    // Draw actual igram (upper drawing)
+    //
+    
     ppf = fringes(ctx, pixels, xoff-mirrorFOVmm*scale/2,yoff-mirrorFOVmm*scale/2,
                   z8,tilt,defocus,astig,655, oversample);
     
@@ -760,11 +890,12 @@ z8  def  tilt
   if (sac >= sensorMM*1.5)
   {
     // no vigneting due to sac
-    $('#idsac0').hide();  
+    $('#idsac0').hide();
   }
   else
   {
-    $('#idsac0').show();  
+    $('#idsac0').show();
+    $('#idsac1').html("<br><font color='#eco'>Your mirror f/# is very low so you need to worry about synthetic aperture cropping (sac). Please contact me about this at thegr5store@gmail.com. I have tested a few wide angle lenses (28mm, 35mm) but the newer longer body lenses probably won't work for you and I can tell you what works and what doesn't and how you can test a lens for sac issues. You might also need a custom made lens.</font>");
     $('#idsac').text(""+sac_percent.toFixed(0)+"%");
     if (sac_percent < 100)
       $('#idsac').css("color", "red");
@@ -772,6 +903,7 @@ z8  def  tilt
       $('#idsac').css("color", "#ec0");
     else
       $('#idsac').css("color", "black");
+    
     // draw blue aperture circle
     if (sac_percent >= 100)
       ctx.strokeStyle="rgb(90,90,255)";
@@ -782,22 +914,47 @@ z8  def  tilt
     ctx.stroke();    
   }
   
+  //
+  // Add text to upper view
+  //
+  
   ctx.font = '20px sans';
   ctx.fillStyle="rgb(130,130,130)";
   ctx.fillText('Camera FOV', xoff-pixW/2+5, yoff-pixH/2+25); // 25 is font height plus margin, 5 is left margin
 
   // now zoom window in lower half
   
-
+  //
+  // draw white strip between upper and lower view
+  //
+  
+  ctx.fillStyle = 'rgb(255,255,255)';
+  ctx.fillRect(0, canvas_height, canvas_width, 2);
+  
   zoom = 2*canvas_height/pixels;
   if (zoom<5) zoom=5;// 5x minimum
   
-  // green zoom box in upper window
-  ctx.fillStyle="rgb(0,0,90)";
+  //
+  // fill lower box black
+  // 
+  
+  ctx.fillStyle="rgb(0,0,0)";
   ctx.fillRect(0, canvas_height+2, canvas_width, canvas_height);
+  
+  //
+  // draw zoomed in igram
+  //
   
   fringes(ctx, pixels*zoom, 20, 302,
                   z8,tilt,defocus,astig,655, 1,500,300);
+  //
+  // text in lower view
+  //
+  
+  ctx.font = '20px sans';
+  ctx.fillStyle="rgb(130,130,130)";
+  ctx.fillText('Zoom View', 5, canvas_height+25); // 25 is font height plus margin, 5 is left margin
+
 }
 
 function nmToRGB(wavelength)
@@ -1053,6 +1210,9 @@ function MPchange()
 
 function vertPixChange()
 {
+  var vp=get('idtxtVertPixels').value;
+  get('idtxtMP').value = (vp*vp*1.5/1000000).toFixed(1);
+  update();
 }
 
 
@@ -1251,10 +1411,13 @@ function other()
 }
 
 var msgbox_callback;
-function messagebox(txt,callback)
+function messagebox(txt,callback,bHTML)
 {
   msgbox_callback=callback;
-  $('#idSpanMsgBox').text(txt);
+  if (bHTML)
+    $('#idSpanMsgBox').html(txt);
+  else
+    $('#idSpanMsgBox').text(txt);
   $('#idMsgBox').fadeIn(200);
   $('#idDarken').show();
 }
@@ -1273,6 +1436,7 @@ function close_dialog2()
 }
 
 $('#idBtnChooseCamera').click(choose_camera);
+$('#idBtnChooseLens').click(choose_lens);
 $('#idClose1').click(choose_camera_close);
 
 $('#idBtnRec').click(recommend);
