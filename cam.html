@@ -9,7 +9,7 @@ test on safari, firefox
 Helps you pick out a camera and lens for interferometry
 
 version
-0.9
+1.0
 -->
 
 
@@ -372,7 +372,21 @@ var camera_data=
 {brand:2,name:"EOS R100",sensor_mm:24,mp:24.1},
 ];
 
-camera_data.sort(function(a,b){return a.name.localeCompare(b.name,'en',{numeric:true})});
+function isMirrorless(cam)
+{
+  if (cam.brand==1 && cam.name.substr(0,1)=="Z") return true;
+  if (cam.brand==2 && (cam.name.substr(0,5)=="EOS M" || cam.name.substr(0,5)=="EOS R")) return true;
+  return false;
+}
+camera_data.sort(function(a,b)
+  {
+    var am=isMirrorless(a);
+    var bm=isMirrorless(b);
+    if (am==bm)
+      return a.name.localeCompare(b.name,'en',{numeric:true})
+    if (am) return 1;
+    return -1;
+  });
 console.log(camera_data.length);
 /*
 for(i=0; i<camera_data.length; i++)
@@ -392,14 +406,14 @@ function makeCameraRadios(brand)
 {
   str="";
   column=0;
-  prev="";
+  prev_cam="";
   for(i=0; i<camera_data.length; i++)
   {
     cam = camera_data[i];
     if (cam.brand != brand) continue;
     column++;
     
-    if (cam.name.substring(0,1)=='Z' && prev.substring(0,1)!='Z')
+    if (isMirrorless(cam) && isMirrorless(prev_cam) == false)
     {
       str+="<p>mirrorless<br>";
       column=1;
@@ -419,7 +433,7 @@ function makeCameraRadios(brand)
       str+="<br>";
     else
       str+=" ";
-    prev=cam.name;
+    prev_cam=cam;
   }
   str+="<a href='javascript:void(0);' id='idClose2' style='float:right'>Close</a>";
   $('#idPopup2').html(str);
@@ -508,6 +522,7 @@ function info_text(id, txt)
 
 info_text('idppf_info', "You need at least 4 pixels per fringe for color cameras due to the bayer filter. 2ppf on bw cameras with no bayer filter.");
 info_text('idsac_info', "Must be > 100%. This is hard to explain and I hope to post a video but your lens aperture might not be big enough to fit the whole igram. The igram is a cone of light exiting the interferometer, if that cone expands too fast and you can't get the camera lens close enough to the expanding point then your camera lens will crop the igram and will be unusable.  The text will only turn red if it is estimated that you won't be able to see the whole igram even with the camera lens toughing the splitter cube.");
+
 
 
 /*
@@ -670,13 +685,15 @@ function choose_lens()
   {
     bSolutionFound=true;
     if (sac_percent > 150)
-      str+="50mm F/2 lens will work and it's the cheapest possible lens<br>";
+    {
+      str+="50mm F/2 lens will work and it's the cheapest possible lens<br>Avoid using zoom lenses because of sac issue.<img src='i.png' class='info' id='idsac_info2'><br>";
+    }
     else if (sac_percent > 110)
       str+="50mm F/2 lens will barely work but I recommend you get a wider aperture such as F/1.8 so the lens doesn't have to be right up against the splitter.<br>";
     else if (sac_percent > 60)
     {
       var fnum_desired = sac_percent/100*2; // *2 because F/2 was used to calculate the sac
-      str+="50mm focal length works but you need an aperture of F/"+fnum_desired.toFixed(2)+" and at that f/# lens it would need to touch the splitter. <br>";
+      str+="50mm focal length works but you need an aperture of F/"+fnum_desired.toFixed(2)+" (or faster) and at that f/# lens it would need to touch the splitter. <br>";
     }
   }
   else if (max_focal_length <= 55 && max_focal_length > 40 && min_focal_length < 25)
@@ -689,13 +706,13 @@ function choose_lens()
     sac_percent = sac/mirrorFOVmm*100;     
     if (sac > 150)
     {
-      str+="35mm F/1.8 will work and not very expensive.<br>";
+      str+="35mm F/1.8 will work and not very expensive.<br>Avoid using zoom lenses because of sac issue.<img src='i.png' class='info' id='idsac_info2'><br>";
       bSolutionFound=true;
     }
     else
     {
       var fnum_desired = sac_percent/100*1.8; // *1.8 because F/1.8 was used to calculate the sac
-      str+="35mm works but you need an aperture of F/"+fnum_desired.toFixed(2)+" and at that f/# lens it would need to touch the splitter<br>";
+      str+="35mm works but you need an aperture of F/"+fnum_desired.toFixed(2)+" (or faster) and at that f/# lens it would need to touch the splitter<br>";
     }
   }
   
@@ -715,6 +732,7 @@ if (min_focal_length*2 > max_focal_length)
   
   
   messagebox(str,null,true);
+  info_text('idsac_info2', "Avoid using zoom lenses: This is hard to explain and I hope to post a video but your lens aperture might not be big enough to fit the whole igram. The igram is a cone of light exiting the interferometer, if that cone expands too fast and you can't get the camera lens close enough to the expanding point then your camera lens will crop the igram and will be unusable. This is particularly bad with zoom lenses.  Although less so for lenses whose minimum zoom is 100mm. It's much more of a problem for zoom lenses that can go wide angle.");
 }
 
 
@@ -1356,6 +1374,7 @@ function updateDiam()
 
 function recommend()
 {
+  messagebox("Start out by picking either Canon or Nikon and then choose any green camera.  The green cameras are the cheapest that have the needed features and are excellent for testing most mirrors. In some rare cases (e.g. 30 inch F/3), while choosing your lens, it may be recommended to increase the camera resolution. For 90% of mirrors any green camera plus a 50mm lens will work. If that is true for you then the next step would be to look at prices of used cameras on ebay.  Camera bodies are about $200.  50mm lenses are about $50. Check that the camera you are thinking of buying will work with a nice margin (no red or yellow text once you choose the hardware).");
 }
 function nikon()
 {
