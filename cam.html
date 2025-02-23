@@ -8,8 +8,9 @@ test on safari, firefox
 
 Helps you pick out a camera and lens for interferometry
 
-version
-1.0
+version 1.1
+1.0 initial release
+1.1 Added search control for narrowing down cameras
 -->
 
 
@@ -25,7 +26,7 @@ version
     border-radius : 0.3em;
   }
   @media (max-width: 1000px){
-      body, td, input, br, button { font-size: 3vw; 
+      body, td, input, br, button, select { font-size: 3vw; 
       text-size-adjust: 100%; /* Prevent automatic scaling */
       -webkit-text-size-adjust: 100%; /* For WebKit browsers */
     }
@@ -33,7 +34,7 @@ version
    .info {width: 2.3vw;}
   }
   @media (min-width:1000px){
-      body, td, input, br, button { font-size: 30px; 
+      body, td, input, br, button, select { font-size: 30px; 
       text-size-adjust: 100%; /* Prevent automatic scaling */
       -webkit-text-size-adjust: 100%; /* For WebKit browsers */
     }
@@ -169,6 +170,7 @@ Camera sensor vertical size: <input type="text"  id="idsensor" value="16" size=3
   Camera sensor vertical pixels: 
 </label>
 <input type="text"  id="idtxtVertPixels" value="2000" size=4 onKeyUp='vertPixChange()' onfocus='vertPixFocus()'>
+<button id='idBtnSearch' title='show all cameras with this resolution or higher'>Search</button>&nbsp;<img src="i.png" class="info" id='idSearch_info'>
 </div>
 
 <p>
@@ -205,6 +207,15 @@ Estimated portion of igram available after lens cropping (blue circle in diagram
 var selected_cam=null;
 var selected_lens=null;
 
+function brand_to_str(brand)
+{
+  switch(brand)
+  {
+    case 1:return "Nikon";
+    case 2:return "Canon";
+    case 3:return "Olympus";
+  }
+}
 var camera_data=
 [
 {brand:1,name:"D1",sensor_mm:15.6,sensor_pixels:1312, prob:"no live view"},
@@ -402,18 +413,33 @@ for(i=0; i<camera_data.length; i++)
     console.log(cam.name+" sensor "+pix);
 }*/
 
-function makeCameraRadios(brand)
+function makeCameraRadios(brand, minpixels, sens_type)
 {
+  // type 0=all 1=full frame 2=small sensor
+  if (!sens_type)sens_type=0;
+  save_brand = brand;
+  save_minpixels = minpixels;
   str="";
+  if (minpixels)
+    str+="<select id='idselsens'><option value=0>all</option><option value=1>full frame (sometimes better when mirror&lt;F/2)</option><option value=2>small sensor (usually better)</option></select><br>";
   column=0;
   prev_cam="";
   for(i=0; i<camera_data.length; i++)
   {
     cam = camera_data[i];
-    if (cam.brand != brand) continue;
+    if (brand != "*" && cam.brand != brand) continue;
+    if (minpixels && get_vert_pixels(i) < minpixels) continue;
+    if (minpixels && cam.prob) continue;
+    if (sens_type==1 && cam.sensor_mm < 20) continue;
+    if (sens_type==2 && cam.sensor_mm > 20) continue;
     column++;
     
-    if (isMirrorless(cam) && isMirrorless(prev_cam) == false)
+    if (cam.brand != prev_cam.brand)
+    {
+      
+      str+="<p>"+brand_to_str(cam.brand)+"<br>";
+      column=1;
+    }else if (isMirrorless(cam) && isMirrorless(prev_cam) == false)
     {
       str+="<p>mirrorless<br>";
       column=1;
@@ -437,8 +463,17 @@ function makeCameraRadios(brand)
   }
   str+="<a href='javascript:void(0);' id='idClose2' style='float:right'>Close</a>";
   $('#idPopup2').html(str);
+  $('#idselsens').val(sens_type);
+  $('#idselsens').change(sensor_select_changed);
   $('#idClose2').click(close_dialog2);
 }
+var save_brand;
+var save_minpixels;
+function sensor_select_changed()
+{
+  makeCameraRadios(save_brand, save_minpixels, $('#idselsens').val());
+}
+
 
 var chosen_cam=false;
 function chose_cam(i)
@@ -522,7 +557,7 @@ function info_text(id, txt)
 
 info_text('idppf_info', "You need at least 4 pixels per fringe for color cameras due to the bayer filter. 2ppf on bw cameras with no bayer filter.");
 info_text('idsac_info', "Must be > 100%. This is hard to explain and I hope to post a video but your lens aperture might not be big enough to fit the whole igram. The igram is a cone of light exiting the interferometer, if that cone expands too fast and you can't get the camera lens close enough to the expanding point then your camera lens will crop the igram and will be unusable.  The text will only turn red if it is estimated that you won't be able to see the whole igram even with the camera lens toughing the splitter cube.");
-
+info_text('idSearch_info',"Click 'Search' to show all cameras with this resolution or higher");
 
 
 /*
@@ -628,6 +663,12 @@ function get_vert_pixels(i)
 
 function choose_lens()
 {
+  if ($('#idCamDescription').text().substr(0,6) == "Ras Pi")
+  {
+    messagebox("Sorry, not available for this camera at this time.  You'll have to enter manually below.");
+    return;
+  }
+
   $('#idLensFL').val('50');
   $('#idLensFnum').val('2');
   update();
@@ -666,7 +707,7 @@ function choose_lens()
   {
     var min_pixels= min_focal_length/40*sensorMM;
     if (sensorMM>12 && sensorMM < 23 && min_pixels < 3300) 
-      str+="It might be probably cheaper to switch to a camera with more megapixels so that you can use a (much cheaper) 50mm lens.<br>";
+      str+="It might be cheaper to switch to a camera with more megapixels so that you can use a (much cheaper) 50mm lens.<br>";
   }
   
   if (min_focal_length > 40 && sensorMM > 23)
@@ -718,8 +759,8 @@ function choose_lens()
   
   if (bSolutionFound == false)
   {
-    str+="<b>Decrease lens min</b> fl by increasing camera resolution.<br>";
-    str+="<b>Increase lens max</b> fl (and also min) by using a camera with a larger sensor size<br>"; 
+    str+="To <b>decrease lens min</b> fl, increase camera resolution.<br>";
+    str+="To <b>decrease lens min and max</b> fl, use a camera with a smaller sensor size<br>"; 
   }
 
 
@@ -913,7 +954,8 @@ z8  def  tilt
   else
   {
     $('#idsac0').show();
-    $('#idsac1').html("<br><font color='#eco'>Your mirror f/# is very low so you need to worry about synthetic aperture cropping (sac). Please contact me about this at thegr5store@gmail.com. I have tested a few wide angle lenses (28mm, 35mm) but the newer longer body lenses probably won't work for you and I can tell you what works and what doesn't and how you can test a lens for sac issues. You might also need a custom made lens.</font>");
+    if (sac_percent < 200)
+      $('#idsac1').html("<br><font color='#eco'>Your mirror f/# is very low so you need to worry about synthetic aperture cropping (sac). Please contact me about this at thegr5store@gmail.com. I have tested a few wide angle lenses (28mm, 35mm) but the newer longer body lenses probably won't work for you and I can tell you what works and what doesn't and how you can test a lens for sac issues. You might also need a custom made lens.</font>");
     $('#idsac').text(""+sac_percent.toFixed(0)+"%");
     if (sac_percent < 100)
       $('#idsac').css("color", "red");
@@ -1448,6 +1490,15 @@ function close_msgbox()
   $('#idDarken').hide();
 }
 
+function search()
+{
+  // search through all cameras that have higher or equal resolution to value left of search button
+  makeCameraRadios("*",$('#idtxtVertPixels').val());
+  $('#idPopup2').fadeIn(200);
+  $('#idPopup1').fadeOut(200);
+
+}
+
 function close_dialog2()
 {
   $('#idPopup2').fadeOut(200);
@@ -1465,6 +1516,7 @@ $('#idBtnCel').click(cell);
 $('#idBtnRas').click(rasp);
 $('#idBtnWeb').click(webcam);
 $('#idBtnOth').click(other);
+$('#idBtnSearch').click(search);
 
 $('#idCloseMB').click(close_msgbox);
 
