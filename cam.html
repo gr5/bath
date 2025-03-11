@@ -8,9 +8,12 @@ test on safari, firefox
 
 Helps you pick out a camera and lens for interferometry
 
-version 1.1
+version 1.3
 1.0 initial release
 1.1 Added search control for narrowing down cameras
+1.2 minor changes: "start by entering mirror details", added sony cameras, automatically detects if you just need 4k pixels and no other issues,
+                   added iphone 11, recommended camera chooser has major updates including only Nikon cropped cameras
+1.3 fixed bug in recommend() where it wasn't setting the sensor size and if you had recently chosen an iphone it messed up
 -->
 
 
@@ -80,6 +83,7 @@ version 1.1
 
 <tr>
 <td colspan=3>
+  <center><h3 id='idStartBy'><font color=blue>Start by entering mirror details</font></h3></center>
   <center><h3>Mirror</h3></center>
 </td>
 </tr>
@@ -131,6 +135,7 @@ version 1.1
 <button id='idBtnRec'>I don't have a camera, please recommend one...</button><br>
 <button id='idBtnNik'>Nikon...</button><br>
 <button id='idBtnCan'>Canon...</button><br>
+<button id='idBtnSony'>Sony</button><br>
 <button id='idBtnCel'>Cell Phone</button><br>
 <button id='idBtnRas'>Raspberry Pi HQ Cam</button><br>
 <button id='idBtnWeb'>Web Cam</button><br>
@@ -389,6 +394,16 @@ function isMirrorless(cam)
   if (cam.brand==2 && (cam.name.substr(0,5)=="EOS M" || cam.name.substr(0,5)=="EOS R")) return true;
   return false;
 }
+function findCam(name)
+{
+  // returns index into array
+  for(i=0;i<camera_data.length; i++)
+  {
+    if (camera_data[i].name == name)
+      return i;
+  }
+  return -1;
+}
 camera_data.sort(function(a,b)
   {
     var am=isMirrorless(a);
@@ -476,7 +491,7 @@ function sensor_select_changed()
 
 
 var chosen_cam=false;
-function chose_cam(i)
+function chose_cam(i,bDontCloseMessageBox)
 {
   cam = camera_data[i];
   chosen_cam=cam;
@@ -526,7 +541,8 @@ function chose_cam(i)
   min_focal_length = 50*4/ppf;
   
   //alert("min fl: "+min_focal_length.toFixed(1)+"  max fl: "+max_focal_length.toFixed(1));
-  
+  if (bDontCloseMessageBox == null || bDontCloseMessageBox == false)
+    $('#idMsgBox').fadeOut(200);
   
   
   /*
@@ -556,7 +572,7 @@ function info_text(id, txt)
 }
 
 info_text('idppf_info', "You need at least 4 pixels per fringe for color cameras due to the bayer filter. 2ppf on bw cameras with no bayer filter.");
-info_text('idsac_info', "Must be > 100%. This is hard to explain and I hope to post a video but your lens aperture might not be big enough to fit the whole igram. The igram is a cone of light exiting the interferometer, if that cone expands too fast and you can't get the camera lens close enough to the expanding point then your camera lens will crop the igram and will be unusable.  The text will only turn red if it is estimated that you won't be able to see the whole igram even with the camera lens toughing the splitter cube.");
+info_text('idsac_info', "Must be > 100%. This is hard to explain and I hope to post a video but your lens aperture might not be big enough to fit the whole igram. The igram is a cone of light exiting the interferometer, if that cone expands too fast and you can't get the camera lens close enough to the expanding point then your camera lens will crop the igram and will be unusable.  The text will only turn red if it is estimated that you won't be able to see the whole igram even with the camera lens touching the splitter cube. Estimates are based on 5 lenses for DSLR cameras and not valid for other much smaller lenses such as cell phone lenses.");
 info_text('idSearch_info',"Click 'Search' to show all cameras with this resolution or higher");
 
 
@@ -1325,6 +1341,7 @@ function flfocus()
 
 function fnumchange()
 {
+  $('#idStartBy').hide();
   get('idfltxt').value = get('idfnumtxt').value * get('idDiamtxt').value;
   round('idfltxt', radioPosition=="mm" ? 0 : 1);
   update();
@@ -1375,6 +1392,7 @@ function unitclick(myRadio)
 }
 function radfclick(myRadF)
 {
+  $('#idStartBy').hide();
   // grey out unselected radio row
   if (myRadF.value == "fnum")
   {
@@ -1398,6 +1416,7 @@ function radfclick(myRadF)
 
 function updateDiam()
 {
+  $('#idStartBy').hide();
   mirror_diameter = get('idDiamtxt').value;
   if (mirror_diameter == 0 || mirror_diameter=="")
     return;
@@ -1416,7 +1435,61 @@ function updateDiam()
 
 function recommend()
 {
-  messagebox("Start out by picking either Canon or Nikon and then choose any green camera.  The green cameras are the cheapest that have the needed features and are excellent for testing most mirrors. In some rare cases (e.g. 30 inch F/3), while choosing your lens, it may be recommended to increase the camera resolution. For 90% of mirrors any green camera plus a 50mm lens will work. If that is true for you then the next step would be to look at prices of used cameras on ebay.  Camera bodies are about $200.  50mm lenses are about $50. Check that the camera you are thinking of buying will work with a nice margin (no red or yellow text once you choose the hardware).");
+  $('#idtxtMP').val(14200000);     // D3100
+  $('#idtxtVertPixels').val(3072); // D3100
+  $('#idsensor').val(15.4);        // D3100
+  vertPixFocus();
+
+  $('#idLensFL').val("50");
+  $('#idLensFnum').val("2");
+  update();
+  // max focal length such that any higher focal length will crop the image (no margin included) 
+  max_focal_length = lensFL* mirrorFOV / camFOV;
+  // minimum focal length such that we run out of pixels (no margin included)
+  min_focal_length = lensFL*4/ppf;
+  while (mirrorFOVdeg / camFOVdeg >= 1)
+  {
+    // ppf calculations not done because igram doesn't fit in FOV so start by shrinking lens
+    $('#idLensFL').val($('#idLensFL').val()/2);
+    update();
+  }
+  var sac = synth_apeture_cropping(50, 50/1.4, false);
+  var sac_percent = sac/mirrorFOVmm*100;  
+  
+  if (min_focal_length < 34  && max_focal_length >55 && sac_percent > 150)
+  {
+    messagebox("Green cameras are the best choice but any of these will work well.");
+    makeCameraRadios(1,3072,2);
+    $('#idPopup2').fadeIn(200);
+    $('#idPopup1').fadeOut(200);
+    return;
+  }
+  
+  min_pixels = 3072*min_focal_length/34;
+  if (min_pixels>3072 && min_pixels <= 4000 && max_focal_length > 60 && sac_percent > 150)
+  {
+    messagebox("Green cameras are the best choice but any of these will work well.");
+    makeCameraRadios(1,min_pixels,2);
+    makeCameraRadios(1,3072,2);
+    $('#idPopup2').fadeIn(200);
+    $('#idPopup1').fadeOut(200);
+    return;
+  }
+  
+  if (max_focal_length <= 55)
+  {
+    messagebox("The f/# of your mirror is low enough that we need a wider angle view than typical to see your whole mirror with the camera. The 2 obvious solutions are to use a full frame camera (could be thousands of dollars) or a wider angle lens (also could be only $50 for say a 28mm or $1000 for something wider). Plus I'm not sure what other requirements there might be because this 'recommend a camera' code is very simple.  So I'm going to start you with a cropped camera (the Nikon D3200) and you need to click the choose a lens button and if the choices don't make sense then maybe try a full frame camera.");
+  } else
+  {
+    messagebox("Your mirror is unusual enough that my first choice cameras with a 50mm lens won't work. I'm going to start you with the Nikon D3200 which is often a good choice but try hitting the 'choose a lens' and see what it suggests.");
+  }
+  console.log("minp ",min_pixels+" min_fl: "+min_focal_length+" max_fl: "+max_focal_length+" sac_percent: "+sac_percent);
+  chose_cam(findCam("D3200"),true);
+  $('#idPopup1').fadeOut(200);
+  
+
+/*
+  messagebox("Nikon gives you the best features for the money.  Choose Nikon and then choose any green camera.  The green cameras are the cheapest that have the needed features and are excellent for testing most mirrors. In some rare cases (e.g. 30 inch F/3), while choosing your lens, it may be recommended to increase the camera resolution. For 90% of mirrors any green camera plus a 50mm lens will work. If that is true for you then the next step would be to look at prices of used cameras on ebay.  Camera bodies are about $200.  50mm lenses are about $50. Check that the camera you are thinking of buying will work with a nice margin (no red or yellow text once you choose the hardware).");*/
 }
 function nikon()
 {
@@ -1430,12 +1503,31 @@ function canon()
   $('#idPopup2').fadeIn(200);
   $('#idPopup1').fadeOut(200);
 }
+function sony()
+{
+  choose_camera_close();
+  messagebox("Sony cameras mostly don't meet the needed specs or if they do they are 3X the cost of Nikon and 2X the cost of Canons.  I don't recommend Sony but there are some good options if you already own one.  If you have a type-A lens mount body (versus type-E) there are good 50mm Minolta type-a 50mm lenses. You'll want at least a 10mp body (24mp for difficult mirrors like 30 inch f/3) and live view with zoom (digitally see what camera sees live for focusing and seeing igrams as the sensor sees them).  Unfortunately you need to manually enter the sensor size and megapixels.");  
+  $('#idCamDescription').text("Sony");
+  $('#idCamDescription').css("color","black");  
+  $('#idBtnChooseCamera').css("color","black");
+  $('#idBtnChooseCamera').text("click to change camera");
+}
 function cell()
 {
   choose_camera_close();
-  messagebox("Cell phones will not work or might just barely work. They are too hard to align and have too small a hole to let the igram into even if the phone lens is touching the splitter. You would also need an extra small splitter (15mm is much too big) and a smaller than typical laser beam, and a shorter focal length than usual diverger (no idea where to get divergers < 6mm focal length). You'll need a special app that gives you precise focus control (I don't think that exists on apple phones and 'tap to focus' will not work for igrams). You'll have to fill in camera and lens parameters in yourself.",other_continue);
-  $('#idCamDescription').text("cell");
+  messagebox("Cell phones will not work or might just barely work. They are too hard to align and have too small a hole to let the igram into even if the phone lens is touching the splitter. You would also need an extra small splitter (15mm is much too big) and a smaller than typical laser beam, and a shorter focal length than usual diverger (no idea where to get divergers < 6mm focal length). You'll need a special app that gives you precise focus control (I don't think that exists on apple phones and 'tap to focus' will not work for igrams). I filled in the numbers for an iphone 11 but it doesn't take into account that it will crop the hell out of most igrams even when the phone is touching the splitter.",other_continue);
+  $('#idCamDescription').text("iphone 11");
   $('#idCamDescription').css("color","black");
+  $('#idBtnChooseCamera').css("color","black");
+  $('#idBtnChooseCamera').text("click to change camera");
+  
+  $('#idsensor').val("10");
+  $('#idtxtMP').val("12");
+  $('#idLensFL').val("26");
+  $('#idLensFnum').val("1.8");
+  $('#idtxtVertPixels').val("3040");
+  MPFocus();
+  
 }
 function rasp()
 {
@@ -1449,7 +1541,9 @@ function rasp()
   vertPixFocus();
   $('#idCamDescription').text("Ras Pi with LN06 lens");
   $('#idCamDescription').css("color","blue");
-  update();
+  $('#idBtnChooseCamera').css("color","black");
+  $('#idBtnChooseCamera').text("click to change camera");
+update();
 }
 function webcam()
 {
@@ -1457,6 +1551,9 @@ function webcam()
   messagebox("This feature isn't filled out yet so for now I'll recommend you avoid webcams but you can just manually fill in the camera info.",other_continue);
   $('#idCamDescription').text("webcam");
   $('#idCamDescription').css("color","black");  
+  $('#idBtnChooseCamera').css("color","black");
+  $('#idBtnChooseCamera').text("click to change camera");
+
 }
 function other_continue()
 {
@@ -1512,6 +1609,7 @@ $('#idClose1').click(choose_camera_close);
 $('#idBtnRec').click(recommend);
 $('#idBtnNik').click(nikon);
 $('#idBtnCan').click(canon);
+$('#idBtnSony').click(sony);
 $('#idBtnCel').click(cell);
 $('#idBtnRas').click(rasp);
 $('#idBtnWeb').click(webcam);
@@ -1519,7 +1617,7 @@ $('#idBtnOth').click(other);
 $('#idBtnSearch').click(search);
 
 $('#idCloseMB').click(close_msgbox);
-
+$('#idStartBy').show();
 
 
 
