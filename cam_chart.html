@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<head>
+<title>camera chart</title>
+
+
+</head>
+
+<body>
+<div id='aaa' style='width:1100px;height:550px;'></div>
+
+<input type='button' value='zoom out (default)' id='idBtnZoomout'>&nbsp;&nbsp;&nbsp;&nbsp;
+<input type='button' value='zoom out more' id='idBtnZoomoutMore'>
+<p>
+<h3><font color='blue'>click and drag mouse over graph to zoom in</font></h3>
+<p>
+<input type="checkbox" id="c1" value="c1"     onclick="radioChange()" checked ><label for="c1">D3100 w/50mm</label><br>
+<input type="checkbox" id="c2" value="c2"     onclick="radioChange()"         ><label for="c2">D3200 w/50mm</label><br>
+<input type="checkbox" id="c3" value="c3"     onclick="radioChange()"         ><label for="c3">D3200 w/85mm</label><br>
+<input type="checkbox" id="c4" value="c4"     onclick="radioChange()"         ><label for="c4">D3200 w/35mm</label><br>
+<input type="checkbox" id="c5" value="c5"     onclick="radioChange()"         ><label for="c5">Z7 w/85mm</label><br>
+
+
+<script type="text/javascript" src="prototype.js"></script>
+<script type="text/javascript" src="flotr-0.2.0-alpha.js"></script>
+<script>
+
+function getRadio(n)
+{
+  return document.getElementById('c'+n).checked;
+}
+function radioChange()
+{
+  load_up_data();
+  plot("nochange");
+}
+function fill_left(data, min_focus)
+{
+  var minf = data[0][1];
+  var maxf = data[data.length-1][1];
+  var mirror_diam;
+  for (f=maxf; f> minf; f-=0.5)
+  {
+    mirror_diam = (min_focus-1)/f/2;
+    data.push([mirror_diam, f]);
+  }
+  mirror_diam = (min_focus-1)/minf/2;
+  data.push([mirror_diam, minf]);
+  
+  data.push([data[0][0], minf]);
+
+}
+
+var series;
+function load_up_data()
+{
+  series=[];
+  if (getRadio(1))
+    series.push({label:'D3100 w/50mm', color:"#00A8F0",data:[[7.4,1.8],[14.2,2.5],[20.4,3],[27.4,3.5],[36,4],[80,6],[140,8],[150,8.3]]}); // 600 pixels
+  if (getRadio(2))
+    series.push({label:'D3200 w/50mm', color:"#CB4B4B",data:[[9.6,1.8],[18.6,2.5],[26.7,3],[36.3,3.5],[47.3,4],[105,6],[185,8],[332,10.8]]}); // 600 pixels f13.0
+  if (getRadio(3))
+    series.push({label:'D3200 w/85mm', color:"#4DA74D",data:[[45.5,3],[81,4],[179,6],[498,10],[1630,18.4]]});//600
+  if (getRadio(4))
+    series.push({label:'D3200 w/35mm', color:"#9440ED",data:[[4,1.4],[8.2,2],[18.3,3],[32.3,4],[72,6],[113,7.57]]});
+  if (getRadio(5))
+    series.push({label:'Z7 w/85mm', color:"#000000",data:[[18,2],[28,2.5],[40,3],[55,3.5], [75,4.1], [125,5.3], [179,6.35], [500,10.7], [1140,16.3]]});
+  series.push({label:'typical amateur mirrors', color:"#808080",data:[[4,10],[6,5],[6,8],[6,10],[8,6],[12,6],[12,5],[12,4],[18,4],[18,3.6],[29,3.3],[32,3]],points:{show:true}});
+
+  var i=0;
+  if (getRadio(1))
+    fill_left(series[i++].data, 17.76);
+  if (getRadio(2))
+    fill_left(series[i++].data, 17.76);
+  if (getRadio(3))
+    fill_left(series[i++].data, 31.44);
+  if (getRadio(4))
+    fill_left(series[i++].data, 11.8);
+  if (getRadio(5))
+    fill_left(series[i++].data, 31.44);
+}
+
+var lastArea="";
+function plot(area)
+{
+  options={selection:{mode:'xy',fps:30,color:'#000000'},
+              legend:{position:'se',backgroundColor: '#c0c0ff'}};
+  if (area == "nochange")
+    area=lastArea;
+    
+  if (area=="out")
+    {
+        options.xaxis={min:0,max:80};
+        options.yaxis={min:0};
+    }
+    else if (area)
+    {
+        options.xaxis={min:area.x1, max:area.x2};
+        options.yaxis={min:area.y1, max:area.y2};
+    }
+  
+  Flotr.draw($('aaa'), series ,options);
+  lastArea=area;
+}
+
+load_up_data();
+plot("out");
+
+//
+// handle zoom
+
+//
+$('aaa').observe('flotr:select', function(evt){
+    var area = evt.memo[0];
+    plot(area);
+
+});
+
+$('idBtnZoomout').observe('click', function(){plot("out")});
+$('idBtnZoomoutMore').observe('click', function(){plot()});
+
+</script>
+
+</body>
