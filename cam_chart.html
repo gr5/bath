@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <head>
 <title>camera chart</title>
-
-
 </head>
+
+<h2>Encircled region shows what mirror types can be tested with that camera</h2>
 
 <body>
 <div id='aaa' style='width:1100px;height:550px;'></div>
@@ -13,11 +13,24 @@
 <p>
 <h3><font color='blue'>click and drag mouse over graph to zoom in</font></h3>
 <p>
-<input type="checkbox" id="c1" value="c1"     onclick="radioChange()" checked ><label for="c1">D3100 w/50mm</label><br>
-<input type="checkbox" id="c2" value="c2"     onclick="radioChange()"         ><label for="c2">D3200 w/50mm</label><br>
-<input type="checkbox" id="c3" value="c3"     onclick="radioChange()"         ><label for="c3">D3200 w/85mm</label><br>
-<input type="checkbox" id="c4" value="c4"     onclick="radioChange()"         ><label for="c4">D3200 w/35mm</label><br>
-<input type="checkbox" id="c5" value="c5"     onclick="radioChange()"         ><label for="c5">Z7 w/85mm</label><br>
+<input type="checkbox" id="c1" value="c1"     onclick="radioChange()" checked ><label for="c1">Nikon D3100 w/50mm f/1.8</label><br>
+<input type="checkbox" id="c2" value="c2"     onclick="radioChange()"         ><label for="c2">Nikon D3200 w/50mm f/1.8</label><br>
+<input type="checkbox" id="c3" value="c3"     onclick="radioChange()"         ><label for="c3">Nikon D3200 w/85mm f/1.8</label><br>
+<input type="checkbox" id="c4" value="c4"     onclick="radioChange()"         ><label for="c4">Nikon D3200 w/35mm f/1.8</label><br>
+<input type="checkbox" id="c5" value="c5"     onclick="radioChange()"         ><label for="c5">Nikon Z7 full frame w/85mm f/1.8</label><br>
+<p>
+<input type="checkbox" id="chkInch" value="chkInch"     onclick="unitsChange()"         ><label for="chkInch">change units to cm</label><br>
+Add your own mirror - diameter: 
+<input type='text' id='idDiam' size=3 value='8'> &nbsp;&nbsp;&nbsp; f/#: <input type='text' id='idFnum' size=2 value='5'>
+<input type='button' onclick='addCustomMirror()' value='Set'>
+<p>
+How to use this chart.  If your mirrors to be tested on a Bath Interferometer are within the encircled blue region then a used Nikon D3100 with a 50mm f/1.8 lens will work for you ($200 for used body, $50 for used lens on ebay).  If one of your mirrors is outside this region, try some of the other options here (these are not the only options).  If your mirror is right on the edge, try this utility for more info:
+<a href="cam.html">camera chooser</a>
+<p>
+The top of the region is set by camera resolution and the size of the igram on the camera sensor.  I chose a minimum of 500 pixels across the diameter of the igram.  This is a bit arbitrary and you would be fine to test with just 200 pixels across the mirror.  
+<p>The left side of the region is set by the minimum focal distance of the lens being used.  The mirror to be tested will be at RoC (double the focal length) from the Bath and camera. It's unlikely you have a mirror so small it hits this limit.  I included 1 inch for the distance from the camera lens to the Coc.
+<p>The bottom of the graph is set based on the size of the igram in the field of view - any lower f/# mirror and the igram will be cropped at the top and bottom of the field of view. I included a very small margin (about 5-10% arbitrarily) as if you are right on the edge then it's a royal pain to position the camera such that it isn't cropping at the top or bottom of the igram.  There is another type of cropping that I call "sac" or "synthetic aperture cropping". These 3 lenses I own and don't have sac issues - the worst is the 35mm F/1.8 which needs to be almost touching the Bath splitter cube or it will crop the field of view. The other 2 lenses can be quite far behind the splitter cube.
+<p>The right edge of the region is a curve set by how tiny the fringes are and the pixel resolution of these fringes on the camera.  Cameras with more megapixels will move this curve to the right.  I picked 6 pixels per fringe in the best case igram to set the position of this line but in reality you can go down to 4 pixels (just barely) if the fringes are vertical or horizontal (worst case - can go even lower if none of the fringes are vertical or horizontal).
 
 
 <script type="text/javascript" src="prototype.js"></script>
@@ -33,12 +46,37 @@ function radioChange()
   load_up_data();
   plot("nochange");
 }
+var customDiam=0;
+var customFnum=0;
+function addCustomMirror()
+{
+  bCM = document.getElementById('chkInch').checked;
+  customDiam = parseFloat(document.getElementById('idDiam').value);
+  customFnum = parseFloat(document.getElementById('idFnum').value);
+  if (bCM) customDiam/=2.54;
+  load_up_data();
+  plot("nochange");  
+}
+
+function unitsChange()
+{
+  bCM = document.getElementById('chkInch').checked;
+  var multiplier = bCM ? 2.54 : 1/2.54;
+  load_up_data();
+  if (lastArea != null && lastArea != "out")
+  {
+    lastArea.x1 *= multiplier;
+    lastArea.x2 *= multiplier;
+  }
+  plot("nochange");
+}
+
 function fill_left(data, min_focus)
 {
   var minf = data[0][1];
   var maxf = data[data.length-1][1];
   var mirror_diam;
-  for (f=maxf; f> minf; f-=0.5)
+  for (f=maxf; f> minf; f-=0.3)
   {
     mirror_diam = (min_focus-1)/f/2;
     data.push([mirror_diam, f]);
@@ -65,7 +103,14 @@ function load_up_data()
   if (getRadio(5))
     series.push({label:'Z7 w/85mm', color:"#000000",data:[[18,2],[28,2.5],[40,3],[55,3.5], [75,4.1], [125,5.3], [179,6.35], [500,10.7], [1140,16.3]]});
   series.push({label:'typical amateur mirrors', color:"#808080",data:[[4,10],[6,5],[6,8],[6,10],[8,6],[12,6],[12,5],[12,4],[18,4],[18,3.6],[29,3.3],[32,3]],points:{show:true}});
+    
 
+  if (customDiam !=0)
+  {
+    series.push({label:'your mirror', color:'#00c000',data:[],points:{show:true}});
+    series[series.length-1].data.push([customDiam, customFnum]);
+  }
+    
   var i=0;
   if (getRadio(1))
     fill_left(series[i++].data, 17.76);
@@ -77,27 +122,66 @@ function load_up_data()
     fill_left(series[i++].data, 11.8);
   if (getRadio(5))
     fill_left(series[i++].data, 31.44);
+
+  if (document.getElementById('chkInch').checked)
+  {
+    // convert all values from inches to cm
+    var i,j,data;
+    for (i=0;i<series.length;i++)
+    {
+      data=series[i].data;
+      for (j=0;j<data.length;j++)
+      {
+        data[j][0] *= 2.54;
+      }
+    }
+  }
 }
 
+
+
 var lastArea="";
+var options;
 function plot(area)
 {
+  bCM = document.getElementById('chkInch').checked;
+  units = bCM ? "cm" : "in";
   options={selection:{mode:'xy',fps:30,color:'#000000'},
-              legend:{position:'se',backgroundColor: '#c0c0ff'}};
+              legend:{position:'se',backgroundColor: '#c0c0ff'},
+              xaxis:{min:null},
+              yaxis:{max:null},
+              xaxis:{title:"Diameter of mirror in inches"},
+              yaxis:{title:"F/#"},
+              mouse:{ track:true,
+                      relative:true,
+                      position: 'ne',
+                      sensibility: 20, // => The smaller this value, the more precise you've to point
+                      trackDecimals: 2,
+                      trackFormatter: function(obj){ return obj.x+" "+units+"  F/"+obj.y }
+                     },
+              };
   if (area == "nochange")
     area=lastArea;
+  
+  if (bCM)
+    options.xaxis.title="Diameter of mirror in cm";
     
   if (area=="out")
     {
-        options.xaxis={min:0,max:80};
-        options.yaxis={min:0};
+        options.xaxis.min=0;
+        options.xaxis.max=80;
+        options.yaxis.min=0;
+        if (bCM)
+          options.xaxis.max *= 2.54;
     }
     else if (area)
     {
-        options.xaxis={min:area.x1, max:area.x2};
-        options.yaxis={min:area.y1, max:area.y2};
+        options.xaxis.min=area.x1;
+        options.xaxis.max=area.x2;
+        options.yaxis.min=area.y1;
+        options.yaxis.max=area.y2;
     }
-  
+
   Flotr.draw($('aaa'), series ,options);
   lastArea=area;
 }
