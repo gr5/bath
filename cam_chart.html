@@ -18,6 +18,14 @@
 <input type="checkbox" id="c3" value="c3"     onclick="radioChange()"         ><label for="c3">Nikon D3200 w/85mm f/1.8</label><br>
 <input type="checkbox" id="c4" value="c4"     onclick="radioChange()"         ><label for="c4">Nikon D3200 w/35mm f/1.8</label><br>
 <input type="checkbox" id="c5" value="c5"     onclick="radioChange()"         ><label for="c5">Nikon Z7 full frame w/85mm f/1.8</label><br>
+<input type="checkbox" id="c6" value="c6"     onclick="radioChange()"         ><label for="c6">Custom</label>
+sensor size vertical(mm): <input type='text' id='idCamVert' size=2 value=24> 
+sensor pixels vertical: <input type='text' id='idCamPix' size=3 value=4000> 
+lens FL (mm) <input type='text' id='idCamLens' size=2 value=50>
+Lens minimum focus distance (meters): <input type='text' id='idCamMinFocus' size=2 value=.45>
+<input type='button' value='Calculate' onclick='makeCustomPoints()'> This doesn't take into account sac (synthetic aperture cropping). Many lenses have sac issues.
+
+<br>
 <p>
 <input type="checkbox" id="chkInch" value="chkInch"     onclick="unitsChange()"         ><label for="chkInch">change units to cm</label><br>
 Add your own mirror - diameter: 
@@ -27,9 +35,10 @@ Add your own mirror - diameter:
 How to use this chart.  If your mirrors to be tested on a Bath Interferometer are within the encircled blue region then a used Nikon D3100 with a 50mm f/1.8 lens will work for you ($200 for used body, $50 for used lens on ebay).  If one of your mirrors is outside this region, try some of the other options here (these are not the only options).  If your mirror is right on the edge, try this utility for more info:
 <a href="cam.html">camera chooser</a>
 <p>
-The top of the region is set by camera resolution and the size of the igram on the camera sensor.  I chose a minimum of 500 pixels across the diameter of the igram.  This is a bit arbitrary and you would be fine to test with just 200 pixels across the mirror.  
+The top of the region is set by camera resolution and the size of the igram on the camera sensor.  I chose a minimum of 600 pixels across the diameter of the igram.  This is a bit arbitrary and you would be fine to test with just 200 pixels across the mirror.  
 <p>The left side of the region is set by the minimum focal distance of the lens being used.  The mirror to be tested will be at RoC (double the focal length) from the Bath and camera. It's unlikely you have a mirror so small it hits this limit.  I included 1 inch for the distance from the camera lens to the Coc.
-<p>The bottom of the graph is set based on the size of the igram in the field of view - any lower f/# mirror and the igram will be cropped at the top and bottom of the field of view. I included a very small margin (about 5-10% arbitrarily) as if you are right on the edge then it's a royal pain to position the camera such that it isn't cropping at the top or bottom of the igram.  There is another type of cropping that I call "sac" or "synthetic aperture cropping". These 3 lenses I own and don't have sac issues - the worst is the 35mm F/1.8 which needs to be almost touching the Bath splitter cube or it will crop the field of view. The other 2 lenses can be quite far behind the splitter cube.
+<p>The bottom of the graph is set based on the size of the igram in the field of view - any lower f/# mirror and the igram will be cropped at the top and bottom of the field of 
+view. I included a very small margin (about 10% arbitrarily) as if you are right on the edge then it's a royal pain to position the camera such that it isn't cropping at the top or bottom of the igram.  There is another type of cropping that I call "sac" or "synthetic aperture cropping". I own the 3 lenses above and they don't have sac issues - the worst is the 35mm F/1.8 which needs to be almost touching the Bath splitter cube or it will crop the field of view. The other 2 lenses can be quite far behind the splitter cube.
 <p>The right edge of the region is a curve set by how tiny the fringes are and the pixel resolution of these fringes on the camera.  Cameras with more megapixels will move this curve to the right.  I picked 6 pixels per fringe in the best case igram to set the position of this line but in reality you can go down to 4 pixels (just barely) if the fringes are vertical or horizontal (worst case - can go even lower if none of the fringes are vertical or horizontal).
 
 
@@ -44,7 +53,7 @@ function getRadio(n)
 function radioChange()
 {
   load_up_data();
-  plot("nochange");
+  makeCustomPoints();
 }
 var customDiam=0;
 var customFnum=0;
@@ -55,7 +64,7 @@ function addCustomMirror()
   customFnum = parseFloat(document.getElementById('idFnum').value);
   if (bCM) customDiam/=2.54;
   load_up_data();
-  plot("nochange");  
+  makeCustomPoints();
 }
 
 function unitsChange()
@@ -68,8 +77,15 @@ function unitsChange()
     lastArea.x1 *= multiplier;
     lastArea.x2 *= multiplier;
   }
-  plot("nochange");
+  makeCustomPoints();
 }
+/*
+    tilt=-z8*7+4;
+    defocus=-z8*1.2+.3;
+    astig=0;
+*/
+
+
 
 function fill_left(data, min_focus)
 {
@@ -87,7 +103,7 @@ function fill_left(data, min_focus)
   data.push([data[0][0], minf]);
 
 }
-
+var customSeries=[];
 var series;
 function load_up_data()
 {
@@ -102,6 +118,11 @@ function load_up_data()
     series.push({label:'D3200 w/35mm', color:"#9440ED",data:[[4,1.4],[8.2,2],[18.3,3],[32.3,4],[72,6],[113,7.57]]});
   if (getRadio(5))
     series.push({label:'Z7 w/85mm', color:"#000000",data:[[18,2],[28,2.5],[40,3],[55,3.5], [75,4.1], [125,5.3], [179,6.35], [500,10.7], [1140,16.3]]});
+  if (getRadio(6))
+  {
+    series.push({label:'custom', color:"#ff8000",data:[]});
+    series[series.length-1].data = customSeries.slice(); // makes fresh copy
+  }
   series.push({label:'typical amateur mirrors', color:"#808080",data:[[4,10],[6,5],[6,8],[6,10],[8,6],[12,6],[12,5],[12,4],[18,4],[18,3.6],[29,3.3],[32,3]],points:{show:true}});
     
 
@@ -138,6 +159,137 @@ function load_up_data()
   }
 }
 
+
+function calc_ppf(z8, tilt, defocus, astig, pixels)
+{
+    // now find highest slope - look only along the X axis and only check X slope
+    let maxSlope=0;
+    let maxSlopeX=0;
+    let slope=0;
+    for (x=-1; x<=1; x+=.01) // check 200 positions
+    {
+        let x3 = x*x*x;
+        
+        slope = z8*6*(4*x3-2*x) + tilt + defocus*4*x + astig*2*x;
+        
+        if (Math.abs(slope) > Math.abs(maxSlope))
+        {
+            maxSlope = slope;
+            maxSlopeX=x;
+        }
+    }
+    
+    // maxSlope is now in waves per unit circle radius
+    maxSlope = maxSlope/(pixels/2);  // now in waves per pixel
+    
+    return Math.abs(1/maxSlope);
+}
+
+function inch_fnum_to_ppf(inch, fnum, pixels)
+{
+	const wl=650;
+	let mirror_diam = inch*25.4;
+	const cc= -1;
+	let z8 = cc*(mirror_diam/(wl/1000000))/(3072 * fnum * fnum * fnum);
+	let tilt=-z8*7+4;
+	let defocus=-z8*1.2+.3;
+	const astig=0;
+	
+	return calc_ppf(z8, tilt, defocus, astig, pixels);
+  
+}
+
+function right_edge_fnum_to_inch(fnum, minpixels, camSizeLens, camSizeMM, camSizePix)
+{
+
+
+  camFOV = camSizeLens/camSizeMM;
+  mirrorFOV = fnum*2;
+  
+  inch_low=0.01;
+  inch_high=10000;
+  
+  igramPixels = camSizePix * camFOV/mirrorFOV;
+
+  for(i=1; i<20; i++)
+  {
+    inch = (inch_low+inch_high)/2;
+	if (inch_fnum_to_ppf(inch, fnum, igramPixels)>minpixels)
+	{
+	  // we can go more inches
+	  inch_low = inch;
+	}
+	else
+	{
+	  inch_high = inch;
+	}
+  }
+  inch = (inch_low+inch_high)/2;
+  return inch;
+}
+
+
+function makeCustomPoints()
+{
+  customSeries = [];
+  var camSizeMM = parseFloat(document.getElementById('idCamVert').value);
+  var camSizePix = parseFloat(document.getElementById('idCamPix').value);
+  var camSizeLens = parseFloat(document.getElementById('idCamLens').value);
+  var camFocus = parseFloat(document.getElementById('idCamMinFocus').value);
+  
+  camFocus *=1000; // convert meters to mm
+  camFocus /=25.4; // convert mm to inches
+  
+  
+  
+  
+  camFOV = camSizeLens/camSizeMM;
+  
+  //mirrorFOV = mirrorFNum*2;
+  //igramPixels = sensorPixels * camFOV/mirrorFOV;
+  
+  // calculate topfnum
+  var mirrorFOV = camSizePix * camFOV / 600;
+  var topfnum = mirrorFOV / 2;
+  
+  // calculate botfnum where mirrorFOV=CAMfov*85%
+  
+  var mirrorFOV = camFOV/.9;
+  var botfnum = mirrorFOV / 2;
+  let inch = right_edge_fnum_to_inch(botfnum, 6, camSizeLens, camSizeMM, camSizePix)
+  let mirror_diam = (camFocus-1)/botfnum/2;
+  if (inch < mirror_diam)
+  {
+    // need to find intersection of two curves
+	let f_min = botfnum;
+	let f_max = topfnum;
+	for (let i=0; i<10; i++)
+	{
+	  f = (f_min+f_max)/2;
+	  inch = right_edge_fnum_to_inch(f, 6, camSizeLens, camSizeMM, camSizePix)
+	  mirror_diam = (camFocus-1)/f/2;
+	  if (inch < mirror_diam)
+	    f_min = f; // increase f
+	  else
+	    f_max = f;
+	}
+	botfnum = (f_min+f_max)/2;
+  }
+  
+  for(let f = botfnum; f < topfnum; f *= 1.2)
+  {
+     customSeries.push(new Array(right_edge_fnum_to_inch(f, 6, camSizeLens, camSizeMM, camSizePix),f));
+  }
+ customSeries.push(new Array(right_edge_fnum_to_inch(topfnum, 6, camSizeLens, camSizeMM, camSizePix),topfnum));
+  
+  
+  // fill_left expects first element to be bottom right corner of graph and last element to be top right corner
+  fill_left(customSeries, camFocus);
+  
+  load_up_data();
+  plot("nochange");
+
+}
 
 
 var lastArea="";
@@ -180,12 +332,16 @@ function plot(area)
         options.xaxis.max=area.x2;
         options.yaxis.min=area.y1;
         options.yaxis.max=area.y2;
-    }
+    } else
+	{
+        options.xaxis.min=0;
+        options.yaxis.min=0;
+	}
 
   Flotr.draw($('aaa'), series ,options);
   lastArea=area;
 }
-
+makeCustomPoints();
 load_up_data();
 plot("out");
 
