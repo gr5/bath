@@ -8,9 +8,35 @@ version
 Caustics - Display caustics
 </title>
 </head>
+<canvas id='idCanvas' width="1000" height="1000" style="position:absolute; z-index:0"></canvas>
+<div style='position:absolute;z-index:1;margin:30px' id='idMenu'>
+<font color='white'>
+<pre>
 
-<canvas id='idCanvas' width="1000" height="1000" '></canvas>
+<h2 style='color:#4040f0'>https://gr5.org/bath/caustics.html</h2>
 
+Menu
+p - parabolic/spherical toggle
+c - camera toggle
+
+a - move blue area to top
+b - move blue area down one
+n - clear out a/b blue area
+
+f - flat toggle
+l - toggle lens
+
+s - sensor
+t - TDE
+z - brighter
+
+, - move camera left
+. - move camera right
+
+m - toggle this menu
+</pre>
+</font>
+</div>
 <script>
 
   // --------------------------------------------------------
@@ -417,6 +443,8 @@ function myMove(e){
 
     update();
 }
+
+var bMenuVisible=true;
 function myKeys(e)
 {
   /*var t_can = document.getElementById('idCanvas');
@@ -493,6 +521,12 @@ function myKeys(e)
   }  
 
 
+if (e.key=="m")
+  {
+    bMenuVisible = !bMenuVisible;
+    document.getElementById('idMenu').style.display = bMenuVisible ? "block" : "none"; 
+    return;
+  }  
 
 
 if (e.key=="z")
@@ -933,10 +967,12 @@ function update()
         
         // lens
         t.p1=t.p2.copy();
-        t.p2.x+=lens_depth;
+        if (bShowLens)
+          t.p2.x+=lens_depth;
         t.draw();
         b.p1=b.p2.copy();
-        b.p2.x+=lens_depth;
+        if (bShowLens)
+          b.p2.x+=lens_depth;
         b.draw();
         
         t.p1 = b.p2;
