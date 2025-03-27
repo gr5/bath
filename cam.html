@@ -438,7 +438,7 @@ function makeCameraRadios(brand, minpixels, sens_type)
   save_minpixels = minpixels;
   str="";
   if (minpixels)
-    str+="<select id='idselsens'><option value=0>all</option><option value=1>full frame (sometimes better when mirror&lt;F/3)</option><option value=2>small sensor (usually better)</option></select><br>";
+    str+="<select id='idselsens'><option value=0>all</option><option value=1>full frame (sometimes better when mirror&lt;F/3)</option><option value=2>small sensor (better option 99% of time)</option></select><br>";
   column=0;
   prev_cam="";
   for(i=0; i<camera_data.length; i++)
@@ -996,7 +996,7 @@ z8  def  tilt
   // Add text to upper view
   //
   
-  ctx.font = '20px sans';
+  ctx.font = '20px sans-serif';
   ctx.fillStyle="rgb(130,130,130)";
   ctx.fillText('Camera FOV', xoff-pixW/2+5, yoff-pixH/2+25); // 25 is font height plus margin, 5 is left margin
 
@@ -1029,7 +1029,7 @@ z8  def  tilt
   // text in lower view
   //
   
-  ctx.font = '20px sans';
+  ctx.font = '20px sans-serif';
   ctx.fillStyle="rgb(130,130,130)";
   ctx.fillText('Zoom View', 5, canvas_height+25); // 25 is font height plus margin, 5 is left margin
 
@@ -1077,7 +1077,6 @@ function bytediv(a,b)
   // divide a by b where both are integers and result needs to be integer from 0 to 255
   return min(Math.round(a/b,0), 255);
 }
-
 
 function fringes(ctx,pixels,offsetX,offsetY,z8,tilt,defocus,astig,wavelength, oversample,img_width,img_height)
 {
