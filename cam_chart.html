@@ -23,7 +23,7 @@ sensor size vertical(mm): <input type='text' id='idCamVert' size=2 value=24>
 sensor pixels vertical: <input type='text' id='idCamPix' size=3 value=4000> 
 lens FL (mm) <input type='text' id='idCamLens' size=2 value=50>
 Lens minimum focus distance (meters): <input type='text' id='idCamMinFocus' size=2 value=.45>
-<input type='button' value='Calculate' onclick='makeCustomPoints()'> This doesn't take into account sac (synthetic aperture cropping). Many lenses have sac issues.
+<input type='button' value='Calculate' onclick='makeCustomPoints()'> This doesn't take into account stop cropping (virtual pin hole). Many lenses have stop cropping issues.
 
 <br>
 <p>
@@ -38,7 +38,7 @@ How to use this chart.  If your mirrors to be tested on a Bath Interferometer ar
 The top of the region is set by camera resolution and the size of the igram on the camera sensor.  I chose a minimum of 600 pixels across the diameter of the igram.  This is a bit arbitrary and you would be fine to test with just 200 pixels across the mirror.  
 <p>The left side of the region is set by the minimum focal distance of the lens being used.  The mirror to be tested will be at RoC (double the focal length) from the Bath and camera. It's unlikely you have a mirror so small it hits this limit.  I included 1 inch for the distance from the camera lens to the Coc.
 <p>The bottom of the graph is set based on the size of the igram in the field of view - any lower f/# mirror and the igram will be cropped at the top and bottom of the field of 
-view. I included a very small margin (about 10% arbitrarily) as if you are right on the edge then it's a royal pain to position the camera such that it isn't cropping at the top or bottom of the igram.  There is another type of cropping that I call "sac" or "synthetic aperture cropping". I own the 3 lenses above and they don't have sac issues - the worst is the 35mm F/1.8 which needs to be almost touching the Bath splitter cube or it will crop the field of view. The other 2 lenses can be quite far behind the splitter cube.
+view. I included a very small margin (about 10% arbitrarily) as if you are right on the edge then it's a royal pain to position the camera such that it isn't cropping at the top or bottom of the igram.  There is another type of cropping, "crop stopping" or "virtual pinhole cropping". I own the 3 lenses above and they don't have stop cropping issues - the worst is the 35mm F/1.8 which needs to be almost touching the Bath splitter cube or it will crop the field of view. The other 2 lenses can be quite far behind the splitter cube.
 <p>The right edge of the region is a curve set by how tiny the fringes are and the pixel resolution of these fringes on the camera.  Cameras with more megapixels will move this curve to the right.  I picked 6 pixels per fringe in the best case igram to set the position of this line but in reality you can go down to 4 pixels (just barely) if the fringes are vertical or horizontal (worst case - can go even lower if none of the fringes are vertical or horizontal).
 
 

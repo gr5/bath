@@ -4,7 +4,7 @@ todo:
 Shouldn't recalculate igram when nothing changed
 test on safari, firefox
 
-
+sac = "synthetic aperture cropping" aka "stop cropping" aka "virtual pinhole cropping"
 
 Helps you pick out a camera and lens for interferometry
 
@@ -14,6 +14,7 @@ version 1.3
 1.2 minor changes: "start by entering mirror details", added sony cameras, automatically detects if you just need 4k pixels and no other issues,
                    added iphone 11, recommended camera chooser has major updates including only Nikon cropped cameras
 1.3 fixed bug in recommend() where it wasn't setting the sensor size and if you had recently chosen an iphone it messed up
+1.4 Changed "sac" to "virtual pinhole". Warn if focus distance is less than likely minimum lens focusing distance.
 -->
 
 
@@ -191,6 +192,7 @@ Lens f/#: <input type="text"  id="idLensFnum" value="1.8" size=3 onKeyUp="update
 <br>
 <div style="">
 Calculated results. Problems detected will have red text.<br>
+<span id='idMinFocus'></span>
 Camera FOV: <span id='idCamFOV'></span><br>
 Mirror FOV: <span id='idMirrorFOV'></span><br>
 Diameter of igram in pixels: <span id='idPixelDiam'></span><br>
@@ -745,13 +747,13 @@ function choose_lens()
     bSolutionFound=true;
     if (sac_percent > 150)
     {
-      str+="50mm F/2 lens will work and it's the cheapest possible lens<br>Avoid using zoom lenses because of sac issue.<img src='i.png' class='info' id='idsac_info2'><br>";
+      str+="50mm F/2 lens will work and it's the cheapest possible lens<br>Avoid using zoom lenses because of the virtual pinhole issue.<img src='i.png' class='info' id='idsac_info2'><br>";
     }
     else if (sac_percent > 110)
       str+="50mm F/2 lens will barely work but I recommend you get a wider aperture such as F/1.8 so the lens doesn't have to be right up against the splitter.<br>";
     else if (sac_percent > 60)
     {
-      var fnum_desired = sac_percent/100*2; // *2 because F/2 was used to calculate the sac
+      var fnum_desired = sac_percent/100*2; // *2 because F/2 was used to calculate the sac (virtual pinhole)
       str+="50mm focal length works but you need an aperture of F/"+fnum_desired.toFixed(2)+" (or faster) and at that f/# lens it would need to touch the splitter. <br>";
     }
   }
@@ -765,7 +767,7 @@ function choose_lens()
     sac_percent = sac/mirrorFOVmm*100;     
     if (sac > 150)
     {
-      str+="35mm F/1.8 will work and not very expensive.<br>Avoid using zoom lenses because of sac issue.<img src='i.png' class='info' id='idsac_info2'><br>";
+      str+="35mm F/1.8 will work and not very expensive.<br>Avoid using zoom lenses because of the virtual pinhole issue.<img src='i.png' class='info' id='idsac_info2'><br>";
       bSolutionFound=true;
     }
     else
@@ -852,8 +854,8 @@ function update()
   var mirrorROC = $('#idfltxt').val()*2;
   if (radioPosition != "mm")
     mirrorROC*=25.4;
-  if (mirrorROC < 300)
-     $('#idNote').html("<br><font color='#ec0'>Your focal length is very short. Some camera lenses can't focus this short.  Please check for this issue yourself.  The camera lens needs to be able to focus at a distance of "+(mirrorROC/10).toFixed(0)+" cm</font>");
+  /*if (mirrorROC < 300)
+     $('#idNote').html("<br><font color='#ec0'>Your focal length is very short. Some camera lenses can't focus this short.  Please check for this issue yourself.  The camera lens needs to be able to focus at a distance of "+(mirrorROC/10).toFixed(0)+" cm</font>");*/
   
   var wl=650;
   z8 = cc*(mirror_diam/(wl/1000000))/(3072 * mirrorFNum * mirrorFNum * mirrorFNum);
@@ -880,6 +882,16 @@ function update()
   
   igramPixels = sensorPixels * camFOV/mirrorFOV;
   get('idPixelDiam').innerHTML = igramPixels.toFixed(0);
+  
+  if (mirrorROC+25 < lensFL*10) 
+    get('idMinFocus').innerHTML = "Your mirror under test will only be about "+((mirrorROC+25)/10).toFixed(0)+"cm from the camera. <font color='red'>Your lens probably can't focus that close</font><br>"; 
+  else
+    get('idMinFocus').innerHTML = "";
+  
+  //
+  // time to draw 2 graphics of fringes into the lower canvas 
+  //
+  
   
   t_can = document.getElementById('idCanvas');
   ctx = t_can.getContext('2d');
@@ -973,7 +985,7 @@ z8  def  tilt
   {
     $('#idsac0').show();
     if (sac_percent < 200)
-      $('#idsac1').html("<br><font color='#eco'>Your mirror f/# is very low so you need to worry about synthetic aperture cropping (sac). Please contact me about this at thegr5store@gmail.com. I have tested a few wide angle lenses (28mm, 35mm) but the newer longer body lenses probably won't work for you and I can tell you what works and what doesn't and how you can test a lens for sac issues. You might also need a custom made lens.</font>");
+      $('#idsac1').html("<br><font color='#eco'>Your mirror f/# is very low so you need to worry about 'stop cropping' or 'virtual pinhole cropping'. Please contact me about this at thegr5store@gmail.com. I have tested a few wide angle lenses (28mm, 35mm) but the newer longer body lenses probably won't work for you and I can tell you what works and what doesn't and how you can test a lens for sac issues. You might also need a custom made lens.</font>");
     $('#idsac').text(""+sac_percent.toFixed(0)+"%");
     if (sac_percent < 100)
       $('#idsac').css("color", "red");
@@ -1479,7 +1491,7 @@ function recommend()
   
   if (max_focal_length <= 55)
   {
-    messagebox("The f/# of your mirror is low enough that we need a wider angle view than typical to see your whole mirror with the camera. The 2 obvious solutions are to use a full frame camera (could be thousands of dollars) or a wider angle lens (also could be only $50 for say a 28mm or $1000 for something wider). Plus I'm not sure what other requirements there might be because this 'recommend a camera' code is very simple.  So I'm going to start you with a cropped camera (the Nikon D3200) and you need to click the choose a lens button and if the choices don't make sense then maybe try a full frame camera.");
+    messagebox("The f/# of your mirror is low enough that we need a wider angle view than typical to see your whole mirror with the camera. The 2 obvious solutions are to use a full frame camera (could be thousands of dollars) or a wider angle lens (also could be only $50 for say a 28mm or $1000 for something wider). Plus I'm not sure what other requirements there might be because this 'recommend a camera' code is very simple.  So I'm going to start you with a cropped sensor camera (the Nikon D3200) and you need to click the choose a lens button and if the choices don't make sense then maybe try a full frame camera.");
   } else
   {
     messagebox("Your mirror is unusual enough that my first choice cameras with a 50mm lens won't work. I'm going to start you with the Nikon D3200 which is often a good choice but try hitting the 'choose a lens' and see what it suggests.");
@@ -1516,7 +1528,7 @@ function sony()
 function cell()
 {
   choose_camera_close();
-  messagebox("Cell phones will not work or might just barely work. They are too hard to align and have too small a hole to let the igram into even if the phone lens is touching the splitter. You would also need an extra small splitter (15mm is much too big) and a smaller than typical laser beam, and a shorter focal length than usual diverger (no idea where to get divergers < 6mm focal length). You'll need a special app that gives you precise focus control (I don't think that exists on apple phones and 'tap to focus' will not work for igrams). I filled in the numbers for an iphone 11 but it doesn't take into account that it will crop the hell out of most igrams even when the phone is touching the splitter.",other_continue);
+  messagebox("Cell phones will not work or might just barely work. They are too hard to align and have too small a hole to let the igram into even if the phone lens is touching the splitter. You would also need an extra small splitter (15mm is much too big) and a smaller than typical laser beam, and a shorter focal length than usual diverger (no idea where to get divergers < 6mm focal length). You'll need a special app that gives you precise focus control (I don't think that exists on apple phones and 'tap to focus' will not work for igrams). I filled in the numbers for an iphone 11 but it doesn't take into account that it will crop the hell out of most igrams even when the phone is touching the splitter due to 'virtual pinhole cropping' aka 'stop cropping'.",other_continue);
   $('#idCamDescription').text("iphone 11");
   $('#idCamDescription').css("color","black");
   $('#idBtnChooseCamera').css("color","black");

@@ -34,6 +34,9 @@ z - brighter
 . - move camera right
 
 m - toggle this menu
+
+Use mouse scroll wheel to zoom in and out
+Use mouse click and drag to pan around
 </pre>
 </font>
 </div>
@@ -871,6 +874,8 @@ function update()
 
         // caustic
         ctx.lineWidth=20/steps;
+        if (bBrighter)
+          ctx.lineWidth=60/steps;   
         ctx.strokeStyle="rgb(255,255,255,.8)";
         if (make_top_portion_blue_end>0 &&
             step_num/steps < make_top_portion_blue_end &&
