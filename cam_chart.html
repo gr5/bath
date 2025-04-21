@@ -18,6 +18,8 @@
 <input type="checkbox" id="c3" value="c3"     onclick="radioChange()"         ><label for="c3">Nikon D3200 w/85mm f/1.8</label><br>
 <input type="checkbox" id="c4" value="c4"     onclick="radioChange()"         ><label for="c4">Nikon D3200 w/35mm f/1.8</label><br>
 <input type="checkbox" id="c5" value="c5"     onclick="radioChange()"         ><label for="c5">Nikon Z7 full frame w/85mm f/1.8</label><br>
+<input type="checkbox" id="c5b" value="c5b"     onclick="radioChange()"         ><label for="c5b">Rasp Pi HQ cam w/16mm F/1.4</label><br>
+
 <input type="checkbox" id="c6" value="c6"     onclick="radioChange()"         ><label for="c6">Custom</label>
 sensor size vertical(mm): <input type='text' id='idCamVert' size=2 value=24> 
 sensor pixels vertical: <input type='text' id='idCamPix' size=3 value=4000> 
@@ -87,7 +89,7 @@ function unitsChange()
 
 
 
-function fill_left(data, min_focus)
+function fill_left(data, min_focus) // min_focus in inches
 {
   var minf = data[0][1];
   var maxf = data[data.length-1][1];
@@ -109,7 +111,8 @@ function load_up_data()
 {
   series=[];
   if (getRadio(1))
-    series.push({label:'D3100 w/50mm', color:"#00A8F0",data:[[7.4,1.8],[14.2,2.5],[20.4,3],[27.4,3.5],[36,4],[80,6],[140,8],[150,8.3]]}); // 600 pixels
+    series.push({label:'D3100 w/50mm', color:"#00A8F0",data:makePoints(15.4,3072,50,0.45)});
+    //series.push({label:'D3100 w/50mm', color:"#00A8F0",data:[[7.4,1.8],[14.2,2.5],[20.4,3],[27.4,3.5],[36,4],[80,6],[140,8],[150,8.3]]}); // 600 pixels
   if (getRadio(2))
     series.push({label:'D3200 w/50mm', color:"#CB4B4B",data:[[9.6,1.8],[18.6,2.5],[26.7,3],[36.3,3.5],[47.3,4],[105,6],[185,8],[332,10.8]]}); // 600 pixels f13.0
   if (getRadio(3))
@@ -118,6 +121,14 @@ function load_up_data()
     series.push({label:'D3200 w/35mm', color:"#9440ED",data:[[4,1.4],[8.2,2],[18.3,3],[32.3,4],[72,6],[113,7.57]]});
   if (getRadio(5))
     series.push({label:'Z7 w/85mm', color:"#000000",data:[[18,2],[28,2.5],[40,3],[55,3.5], [75,4.1], [125,5.3], [179,6.35], [500,10.7], [1140,16.3]]});
+  if (getRadio('5b'))
+  {
+    series.push({label:'HQ cam w/16mm', color:"#d0d000",data:[]});
+    series[series.length-1].data=makePoints(4.712, 3040, 16, 0.275);
+  }
+
+    
+    
   if (getRadio(6))
   {
     series.push({label:'custom', color:"#ff8000",data:[]});
@@ -134,7 +145,7 @@ function load_up_data()
     
   var i=0;
   if (getRadio(1))
-    fill_left(series[i++].data, 17.76);
+    i++;
   if (getRadio(2))
     fill_left(series[i++].data, 17.76);
   if (getRadio(3))
@@ -228,14 +239,9 @@ function right_edge_fnum_to_inch(fnum, minpixels, camSizeLens, camSizeMM, camSiz
   return inch;
 }
 
-
-function makeCustomPoints()
+function makePoints(camSizeMM, camSizePix, camSizeLens, camFocus)
 {
-  customSeries = [];
-  var camSizeMM = parseFloat(document.getElementById('idCamVert').value);
-  var camSizePix = parseFloat(document.getElementById('idCamPix').value);
-  var camSizeLens = parseFloat(document.getElementById('idCamLens').value);
-  var camFocus = parseFloat(document.getElementById('idCamMinFocus').value);
+  // last parameter, camFocus is in meters but I convert to inches
   
   camFocus *=1000; // convert meters to mm
   camFocus /=25.4; // convert mm to inches
@@ -275,16 +281,29 @@ function makeCustomPoints()
 	}
 	botfnum = (f_min+f_max)/2;
   }
-  
+  ret_series = new Array();
   for(let f = botfnum; f < topfnum; f *= 1.2)
   {
-     customSeries.push(new Array(right_edge_fnum_to_inch(f, 6, camSizeLens, camSizeMM, camSizePix),f));
+     ret_series.push(new Array(right_edge_fnum_to_inch(f, 6, camSizeLens, camSizeMM, camSizePix),f));
   }
- customSeries.push(new Array(right_edge_fnum_to_inch(topfnum, 6, camSizeLens, camSizeMM, camSizePix),topfnum));
+ ret_series.push(new Array(right_edge_fnum_to_inch(topfnum, 6, camSizeLens, camSizeMM, camSizePix),topfnum));
   
   
   // fill_left expects first element to be bottom right corner of graph and last element to be top right corner
-  fill_left(customSeries, camFocus);
+  fill_left(ret_series, camFocus);
+  
+  return ret_series;
+}
+
+function makeCustomPoints()
+{
+  customSeries = [];
+  var camSizeMM = parseFloat(document.getElementById('idCamVert').value);
+  var camSizePix = parseFloat(document.getElementById('idCamPix').value);
+  var camSizeLens = parseFloat(document.getElementById('idCamLens').value);
+  var camFocus = parseFloat(document.getElementById('idCamMinFocus').value);
+  
+  customSeries = makePoints(camSizeMM, camSizePix, camSizeLens, camFocus);
   
   load_up_data();
   plot("nochange");
