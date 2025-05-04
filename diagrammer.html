@@ -748,7 +748,12 @@ function update()
     
     var lambda = .000655; // 655nm
     var shear = shear_waves * lambda * fnum;
+    // shear_waves = shear_distance / lambda / fnum
+    // shear distance = shear waves * lambda * fnum
+    // so only fnum matters and distance is proportional to fnum and smaller fnum is more difficult to position
     //document.getElementById('idSpnFringes').innerHTML = (shear / lambda / fnum).toFixed(0);
+    
+    // defocus however is much worse - fnum squared.  smaller fnum is harder to adjust defocus
     document.getElementById('idSpnFringes').innerHTML = "("+shear.toFixed(2)+"mm)";
     
     var defocus_mm = defocus*8*lambda*(fnum*2)*(fnum*2);
