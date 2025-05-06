@@ -14,6 +14,7 @@ version
 0.8   Added ability to do larger diagram.  Fixed bug where you could click under a handle to move it
 0.9   Fixed bug for when mirror is F/4 and diverger F.L. is 13mm
 1.0   Added another focus point, f3; Added ability to rotate laser
+1.1   Added better error handling when beams miss a component
 
 -->
 <head>
@@ -22,7 +23,7 @@ Bath Interferometer web tool/diagrammer/calculator
 </title>
 </head>
 <h2>Bath Interferometer web tool/diagrammer/calculator</h2>
-(ver 1.0)<br> 
+(ver 1.1)<br> 
 F ratio of mirror under test:
 <input type='text' size=3 value=3 onKeyUp=update() id='idFnum'>
 &nbsp;&nbsp;&nbsp;&nbsp;
@@ -61,9 +62,7 @@ Laser beam rotation
 <br>
 Laser beam width(mm)
 <input type='text' size=3 value=5.2 onKeyUp=update() id='idLaserWidth'>
-<font size=-1>
-(include full beam - not just usable beam.  If any of reference beam reflects off inside of cube then that is a problem.  Hitting the edge of the flat can be a problem also as the edge of the flat can create lots of weird reflections)
-</font>
+
 
 <br>
 Splitter IOR
@@ -98,7 +97,7 @@ Yellow dot is CoC of mirror being tested.  Measure from here to mirror surface a
 <input type=checkbox id=idF3 onchange="update()"><label for="idF3">virtual focal point of exiting beams left side</label>
 <span id='idSpnF3'></span>
 
-<h2><font color='red'><span id=idError></span></font></h2>
+<h2><font color='red'><span id=idError>Problems detected: none</span></font></h2>
 <canvas id='idCanvas' width="1000" height="900" '></canvas>
 
 <br>
@@ -266,11 +265,27 @@ function create_handles()
     h.saveStart=function()
     {
       h.startVal = parseFloat(document.getElementById('idDivergerDist').value);
+	  h.goodVal = h.startVal;
     }
     h.dragto=function(deltax,dy)
     {
       document.getElementById('idDivergerDist').value = h.startVal+deltax;
       update();
+	  if (bError)
+	  {
+	    // go back to last good value
+		document.getElementById('idDivergerDist').value = h.goodVal;
+		var p = errorLocation;
+		if (h.firstfail == null) h.firstfail = p;
+		update();
+		if (h.firstfail)
+		  h.firstfail.draw(.3, "rgb(255,0,255)");
+	  }
+	  else
+	  {
+	    h.goodVal = h.startVal+deltax;
+		h.firstfail=null;
+	  }
     };
     drag_handles['diverger']=h;
     
@@ -279,11 +294,27 @@ function create_handles()
     h.saveStart=function()
     {
       h.startVal =  parseFloat(document.getElementById('idLaserX').value);
+	  h.goodVal = h.startVal;
     }
     h.dragto=function(deltax,dy)
     {
       document.getElementById('idLaserX').value = h.startVal+deltax;
       update();
+	  if (bError)
+	  {
+	    // go back to last good value
+		document.getElementById('idLaserX').value = h.goodVal;
+		var p = errorLocation;
+		if (h.firstfail == null) h.firstfail = p;
+		update();
+		if (h.firstfail)
+		  h.firstfail.draw(.3, "rgb(255,0,255)");
+	  }
+	  else
+	  {
+	    h.goodVal = h.startVal+deltax;
+		h.firstfail=null;
+	  }
     };
     drag_handles['laser']=h;
     
@@ -292,11 +323,27 @@ function create_handles()
     h.saveStart=function()
     {
       h.startVal =  parseFloat(document.getElementById('idLaserRotation').value);
+	  h.goodVal = h.startVal;
     }
     h.dragto=function(deltax,dy)
     {
       document.getElementById('idLaserRotation').value = h.startVal-deltax;
       update();
+	  if (bError)
+	  {
+	    // go back to last good value
+		document.getElementById('idLaserRotation').value = h.goodVal;
+		var p = errorLocation;
+		if (h.firstfail == null) h.firstfail = p;
+		update();
+		if (h.firstfail)
+		  h.firstfail.draw(.3, "rgb(255,0,255)");
+	  }
+	  else
+	  {
+	    h.goodVal = h.startVal-deltax;
+		h.firstfail=null;
+	  }
     };
     drag_handles['laser_rot']=h;
     
@@ -306,11 +353,27 @@ function create_handles()
     h.saveStart=function()
     {
       h.startVal =  parseFloat(document.getElementById('idSplitRot').value);
+	  h.goodVal = h.startVal;
     }
     h.dragto=function(dx,dy)
     {
       document.getElementById('idSplitRot').value = h.startVal+(dx+dy)*3;
       update();
+	  if (bError)
+	  {
+	    // go back to last good value
+		document.getElementById('idSplitRot').value = h.goodVal;
+		var p = errorLocation;
+		if (h.firstfail == null) h.firstfail = p;
+		update();
+		if (h.firstfail)
+		  h.firstfail.draw(.3, "rgb(255,0,255)");
+	  }
+	  else
+	  {
+	    h.goodVal = h.startVal+(dx+dy)*3;
+		h.firstfail=null;
+	  }
     };
     drag_handles['cube']=h;
     
@@ -318,13 +381,33 @@ function create_handles()
     var h = new drag_handle();
     h.saveStart=function()
     {
-      //h.startVal =  parseFloat(document.getElementById('idSplitRot').value);
+      h.startX = drag_handles['flat'].defaultCenter.x;
+      h.startY = drag_handles['flat'].defaultCenter.y;
+      h.goodValX = h.startX;
+	  h.goodValY = h.startY;
     }
     h.dragto=function(dx,dy)
     {
       drag_handles['flat'].flatCenter.x = drag_handles['flat'].defaultCenter.x+dx;
       drag_handles['flat'].flatCenter.y =  drag_handles['flat'].defaultCenter.y+dy;
       update();
+	  if (bError)
+	  {
+	    // go back to last good value
+		drag_handles['flat'].flatCenter.x = h.goodValX;
+		drag_handles['flat'].flatCenter.y = h.goodValY;
+		var p = errorLocation;
+		if (h.firstfail == null) h.firstfail = p;
+		update();
+		if (h.firstfail)
+		  h.firstfail.draw(.3, "rgb(255,0,255)");
+	  }
+	  else
+	  {
+	    h.goodValX = drag_handles['flat'].defaultCenter.x+dx;
+	    h.goodValY = drag_handles['flat'].defaultCenter.y+dy;
+		h.firstfail=null;
+	  }
     };
     drag_handles['flat']=h;
 
@@ -552,12 +635,19 @@ function arc(a,b,c,a1,a2,ccw)
             a1,a2,ccw);
 }
 
+var bError = false;
+var errorLocation = null;
+
 function error(str, p)
 {
 
   document.getElementById('idError').innerHTML+=str+"<br>";
   if (p)
+  {
       p.draw(.3, "rgb(255,0,255)");
+	  errorLocation=p.copy();
+  }
+  bError=true;
 }
 
 function fringes(n)
@@ -568,6 +658,20 @@ function fringes(n)
   update();
 }
 
+function pointInsideSplitter(p)
+{
+	var horizontalLine = new line(p, new coord(p.x+1,p.y));
+	var verticalLine = new line(p, new coord(p.x,p.y+1));
+	var p2 = horizontalLine.intersection(splitter.right);
+	if (p2.x < p.x) return false;
+	p2 = horizontalLine.intersection(splitter.left);
+	if (p2.x > p.x) return false;
+	p2 = verticalLine.intersection(splitter.top);
+	if (p2.y > p.y) return false;
+	p2 = verticalLine.intersection(splitter.bottom);
+	if (p2.y < p.y) return false;
+	return true;
+}
 
 
 
@@ -701,6 +805,8 @@ function myMove(e){
 
 function update()
 {
+	bError=false;
+	errorLocation = null;
     document.getElementById('idError').innerHTML="";
     var t_can = document.getElementById('idCanvas');
     bLarge = document.getElementById('idLarge').checked;
@@ -871,7 +977,7 @@ function update()
     laser.leftLine.p2 = p;
     p = laser.rightLine.intersection(splitter.top);
     if (p.parallel)
-       error("Cube rotated too much");
+       error("Cube rotated too much"); // this can be ignored as other errors will occur as well
     if (splitter.top.isIntersectedPointWithin(p) == false)
        error("laser missing cube",p);
     laser.rightLine.p2 = p;
@@ -986,8 +1092,10 @@ function update()
     drag_handles['flat'].flatCenter = flat.center; // save this for later      
     
     
-    
-    
+    p = flat.intersection(splitter.bottom);
+    if (flat.isIntersectedPointWithin(p))
+        error("flat hits splitter",p);
+
     
     //
     // refract reference beam out bottom of splitter cube
@@ -1076,6 +1184,15 @@ function update()
     drag_handles['diverger'].place(diverger.center.x, diverger.center.y - diverger.len*.75);
     drag_handles['diverger'].draw();
 
+
+    if (pointInsideSplitter(diverger.p1))
+		error("diverger inside splitter",diverger.p1);
+    if (pointInsideSplitter(diverger.p2))
+		error("diverger inside splitter",diverger.p2);
+
+    p = diverger.intersection(flat);
+    if (diverger.isIntersectedPointWithin(p))
+        error("diverger hits flat",p);
 
 
     //
@@ -1382,7 +1499,7 @@ function update()
         f3.draw(0.2, "rgb(0,0,255)");
         //var dist = f3.lengthTo(splitter.tl.average(splitter.bl)); // cube may be rotated - distance from center of left edge of cube to F3
         var dist = splitter.left.distToPoint(f3)
-        document.getElementById('idSpnF3').innerHTML = "<br>Left edge of cube to blue dot: "+dist+"mm";
+        document.getElementById('idSpnF3').innerHTML = "<br>Left edge of cube to blue dot: "+dist.toFixed(1)+"mm";
     }
     else
         document.getElementById('idSpnF3').innerHTML = ""
