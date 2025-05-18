@@ -15,7 +15,7 @@ version
 0.9   Fixed bug for when mirror is F/4 and diverger F.L. is 13mm
 1.0   Added another focus point, f3; Added ability to rotate laser
 1.1   Added better error handling when beams miss a component
-1.2
+1.2   Added class beam,
 
 -->
 <head>
@@ -537,6 +537,7 @@ class beam
             let temp_point = this.lines[i].p2;
             this.lines[i].p2 = this.lines[i].p1;
             this.lines[i].p1 = temp_point;
+		}
     }
     
     setP2(p)
@@ -547,10 +548,6 @@ class beam
         }
     }
     
-    normalize(s)
-    {
-        @@
-    }
     
     reflect(mirror)
     {
@@ -565,8 +562,9 @@ class beam
         // p1 gets p2 and p2 continues farther along at same angle
         for(i=0;i<2;i++)
         {
-            let temp_point = this.lines[i].p2;
-            this.lines[i].p2 += (this.lines[i].p2 - this.lines[i].p1);
+            let temp_point = this.lines[i].p2.copy();
+            this.lines[i].p2.x += (this.lines[i].p2.x - this.lines[i].p1.x);
+            this.lines[i].p2.y += (this.lines[i].p2.y - this.lines[i].p1.y);
             this.lines[i].p1 = temp_point;
         }
       
@@ -581,9 +579,9 @@ class beam
      for(i=0;i<2;i++)
      {
          let p = this.lines[i].intersection(l);
+         this.lines[i].p2 = p;
          if (l.isIntersectedPointWithin(p) == false)
            error=p;
-         l.p2 = p;
      }
      return error;
     }
@@ -599,7 +597,7 @@ class beam
     
     copy()
     {
-        return new beam(lines[0].copy(), lines[1].copy);
+        return new beam(this.lines[0].copy(), this.lines[1].copy());
     }
 }
 
@@ -773,7 +771,7 @@ var c_size;
 var splitter={}; // contains: unit, tl (topleft),tr,bl,br,W (width),H,center, angle (cw rotation)
                  // also lines: top,bottom,left,right,diagonal
 var lens={};
-var laser={}; // leftLine, rightLine
+var laser={};
 var refbeam={};
 var diverger=new line(new coord(0,0), new coord(0,0)); // also: center
 var flat=new line(new coord(0,0), new coord(0,0)); // also: center
@@ -954,6 +952,8 @@ function update()
     
     var defocus_mm = defocus*8*lambda*(fnum*2)*(fnum*2);
     document.getElementById('idSpnDefocus').innerHTML = "("+defocus_mm.toFixed(2)+"mm)";
+	
+	var bDivergerAtCube=true;  // as opposed to at flat
     
 
     
@@ -1030,14 +1030,15 @@ function update()
 
     top_laser = min(splitter.tl.y, splitter.tr.y)-splitter.unit/4;
     x_center_laser = splitter.center.x + laserX;
-    laser.leftLine = new line( new coord(x_center_laser - laserW/2, top_laser),
-                               new coord(x_center_laser - laserW/2, top_laser+1));
+	laser.start = new beam(
+                           new line( new coord(x_center_laser - laserW/2, top_laser),
+                                     new coord(x_center_laser - laserW/2, top_laser+1)),
 
-    laser.rightLine = new line( new coord(x_center_laser + laserW/2, top_laser),
-                               new coord(x_center_laser + laserW/2, top_laser+1));
+                           new line( new coord(x_center_laser + laserW/2, top_laser),
+                                     new coord(x_center_laser + laserW/2, top_laser+1)));
 
-    laser.leftLine.p1.rotate(laser.leftLine.p2, laser_rotation);
-    laser.rightLine.p1.rotate(laser.rightLine.p2, laser_rotation);
+	for(i=0;i<2;i++)
+    laser.start.lines[i].p1.rotate(laser.start.lines[i].p2, laser_rotation);
                                
 
     if (bLarge)
@@ -1059,169 +1060,122 @@ function update()
     drag_handles['laser_rot'].draw();       
     
     // intersect these 2 lines with the cube top
-    var p = laser.leftLine.intersection(splitter.top);
-    if (p.parallel)
-       error("Cube rotated too much",p);
-    if (splitter.top.isIntersectedPointWithin(p) == false)
+	var p = laser.start.intersect(splitter.top);
+    if (p !== null)
        error("laser missing cube",p);
-    laser.leftLine.p2 = p;
-    p = laser.rightLine.intersection(splitter.top);
-    if (p.parallel)
-       error("Cube rotated too much"); // this can be ignored as other errors will occur as well
-    if (splitter.top.isIntersectedPointWithin(p) == false)
-       error("laser missing cube",p);
-    laser.rightLine.p2 = p;
-                                   
     
     ctx.lineWidth=1;
     ctx.strokeStyle="rgb(255,0,255)";
-    laser.leftLine.draw();
-    laser.rightLine.draw();
+    laser.start.draw();
     
     //
     // refract laser through cube
     //
-    ctx.lineWidth=1;
-    ctx.strokeStyle="rgb(255,0,255)";
     
-    //laser.upperCubeLeft = new line(laser.leftLine.p2, laser.leftLine.p2.copy());
-    
-    laser.upperCubeLeft = refract(laser.leftLine, splitter.top, 1, IOR);
-    laser.upperCubeRight = refract(laser.rightLine, splitter.top, 1, IOR);
-    // now that they are refracted, extend to split diagonal
-    p = laser.upperCubeLeft.intersection(splitter.diagonal);
-    if (splitter.diagonal.isIntersectedPointWithin(p) == false)
+	laser.incube = laser.start.refract(splitter.top,1,IOR);
+    var p = laser.incube.intersect(splitter.diagonal)
+	if (p !== null)
         error("laser missing diagonal",p);
-    laser.upperCubeLeft.p2 = p;
-    p = laser.upperCubeRight.intersection(splitter.diagonal);
-    if (splitter.diagonal.isIntersectedPointWithin(p) == false)
-        error("laser missing diagonal",p);
-    laser.upperCubeRight.p2 = p;
 
-    // draw upper
-    laser.upperCubeLeft.draw();
-    laser.upperCubeRight.draw();
-    
-    // now do lower laser aka ref beam
-    colorRefBlue();
 
-    laser.lowerCubeLeft = laser.upperCubeLeft.copy();
-    laser.lowerCubeRight = laser.upperCubeRight.copy();
+    // draw laser in cube
+	laser.incube.draw();
+    
+	if (bDivergerAtCube)
+	{
+		// diverger at cube
+		// now do lower laser aka ref beam
+		colorRefBlue();
+		refbeam.lowercube = laser.incube.copy();
+		refbeam.lowercube.advance();
+		p = refbeam.lowercube.intersect(splitter.bottom);
+		if (p != null)
+			error("laser missing bottom of cube",p);
+		refbeam.lowercube.draw();
+		
+		//
+		// time to calculate and draw flat because above information is useful for positioning the flat
+		//
 
-    p = laser.lowerCubeLeft.intersection(splitter.bottom);
-    if (splitter.bottom.isIntersectedPointWithin(p) == false)
-        error("laser missing bottom of cube",p);
-    laser.lowerCubeLeft.p1=laser.lowerCubeLeft.p2;
-    laser.lowerCubeLeft.p2=p;
+		if (dragging !== null && dragging === drag_handles['flat'])
+		{
+			// flat is being dragged!
+			flat.center = drag_handles['flat'].flatCenter; // restore saved value
+			flat.p1 = flat.center.copy();
+			flat.p2 = flat.center.copy();
+			flat.p1.x -= flatwidth*.3536; // sqrt(2)/4  or .707/2
+			flat.p1.y -= flatwidth*.3536;    
+			flat.p2.x += flatwidth*.3536;    
+			flat.p2.y += flatwidth*.3536;
+			flat.p1.rotate(flat.center, splitter.angle);
+			flat.p2.rotate(flat.center, splitter.angle);        
+		}
+		else
+		{
+			
+			flat.p1.x = refbeam.lowercube.lines[0].p2.x - 0.2; // .2mm left of where laser comes out of bottom of cube
+			flat.p1.y = refbeam.lowercube.lines[0].p2.y + 0.2; // .2mm below where laser comes out of bottom of cube
+			if (splitter.angle - laser_rotation < 0)
+			{
+				var adjust_y = Math.sin(laser_rotation-splitter.angle)*splitter.br.lengthTo(refbeam.lowercube.lines[0].p2); // move down a bit more so beam misses bot right corner of splitter         
+				flat.p1.y += adjust_y;
+				flat.p1.x -= adjust_y*Math.sin(laser_rotation-splitter.angle);
+			}
 
-    p = laser.lowerCubeRight.intersection(splitter.bottom);
-    if (splitter.bottom.isIntersectedPointWithin(p) == false)
-        error("laser missing bottom of cube",p);
-    laser.lowerCubeRight.p1=laser.lowerCubeRight.p2;
-    laser.lowerCubeRight.p2=p;
+			flat.p2 = flat.p1.copy();
+			flat.p2.x += flatwidth*.7071; // assume 45 degrees initially
+			flat.p2.y += flatwidth*.7071;
+			flat.center = flat.p1.average(flat.p2);
+			flat.center.rotate(flat.p1, splitter.angle);
+			flat.p2.rotate(flat.p1, splitter.angle);
+			drag_handles['flat'].defaultCenter = flat.center.copy();
 
-    laser.lowerCubeLeft.draw();
-    laser.lowerCubeRight.draw();
-    
-    //
-    // time to calculate and draw flat because above information is useful for positioning the flat
-    //
-    
-    
-    if (dragging !== null && dragging === drag_handles['flat'])
-    {
-        // flat is being dragged!
-        flat.center = drag_handles['flat'].flatCenter; // restore saved value
-        flat.p1 = flat.center.copy();
-        flat.p2 = flat.center.copy();
-        flat.p1.x -= flatwidth*.3536; // sqrt(2)/4  or .707/2
-        flat.p1.y -= flatwidth*.3536;    
-        flat.p2.x += flatwidth*.3536;    
-        flat.p2.y += flatwidth*.3536;
-        flat.p1.rotate(flat.center, splitter.angle);
-        flat.p2.rotate(flat.center, splitter.angle);        
-    }
-    else
-    {
-        // not being dragged
-        /*
-        flat.center = splitter.center.copy();
-        flat.center.y = max(splitter.bl.y, splitter.br.y)+1+flatwidth*.3536;
-        flat.center.x += laserX;
-        drag_handles['flat'].defaultCenter = flat.center.copy();
-        */
-        
-        flat.p1.x = laser.lowerCubeLeft.p2.x - 0.2; // .2mm left of where laser comes out of bottom of cube
-        flat.p1.y = laser.lowerCubeLeft.p2.y + 0.2; // .2mm below where laser comes out of bottom of cube
-        if (splitter.angle - laser_rotation < 0)
-        {
-            var adjust_y = Math.sin(laser_rotation-splitter.angle)*splitter.br.lengthTo(laser.lowerCubeLeft.p2); // move down a bit more so beam misses bot right corner of splitter         
-            flat.p1.y += adjust_y;
-            flat.p1.x -= adjust_y*Math.sin(laser_rotation-splitter.angle);
-        }
+			ctx.strokeStyle="rgb(255,255,255)";
+			flat.draw();
+			
+			flat.handle = new coord(flat.center.x-1.5, flat.center.y+1.5);
+			flat.handle.rotate(flat.center, splitter.angle);
+			drag_handles['flat'].place(flat.handle.x, flat.handle.y);
+			drag_handles['flat'].draw();
+			drag_handles['flat'].flatCenter = flat.center; // save this for later
 
-        flat.p2 = flat.p1.copy();
-        flat.p2.x += flatwidth*.7071; // assume 45 degrees initially
-        flat.p2.y += flatwidth*.7071;
-        flat.center = flat.p1.average(flat.p2);
-        flat.center.rotate(flat.p1, splitter.angle);
-        flat.p2.rotate(flat.p1, splitter.angle);
-        drag_handles['flat'].defaultCenter = flat.center.copy();
-    }
+			p = flat.intersection(splitter.bottom);
+			if (flat.isIntersectedPointWithin(p))
+				error("flat hits splitter",p);
+			
+			//
+			// refract reference beam out bottom of splitter cube
+			//
 
-    
-    
-    
-    ctx.strokeStyle="rgb(255,255,255)";
-    flat.draw();
-    
-    flat.handle = new coord(flat.center.x-1.5, flat.center.y+1.5);
-    flat.handle.rotate(flat.center, splitter.angle);
-    drag_handles['flat'].place(flat.handle.x, flat.handle.y);
-    drag_handles['flat'].draw();
-    drag_handles['flat'].flatCenter = flat.center; // save this for later      
-    
-    
-    p = flat.intersection(splitter.bottom);
-    if (flat.isIntersectedPointWithin(p))
-        error("flat hits splitter",p);
+			colorRefBlue();
+			
+			refbeam.belowCube = refbeam.lowercube.refract(splitter.bottom, IOR, 1);
+			p = refbeam.belowCube.intersect(flat)
+			if (p!=null)
+				error("ref beam misses flat",p);
+			refbeam.belowCube.draw();
 
-    
-    //
-    // refract reference beam out bottom of splitter cube
-    //
-
-    colorRefBlue();
-    refbeam.belowCubeA = refract(laser.lowerCubeLeft, splitter.bottom, IOR, 1);
-    refbeam.belowCubeB = refract(laser.lowerCubeRight, splitter.bottom, IOR, 1);
-    
-    // extend to flat
-    p = refbeam.belowCubeA.intersection(flat);
-    if (flat.isIntersectedPointWithin(p) == false)
-        error("ref beam misses flat",p);
-    refbeam.belowCubeA.p2 = p;
-    p = refbeam.belowCubeB.intersection(flat);
-    if (flat.isIntersectedPointWithin(p) == false)
-        error("ref beam misses flat",p);
-    refbeam.belowCubeB.p2 = p;
-    
-    refbeam.belowCubeA.draw();
-    refbeam.belowCubeB.draw();
-    
-
-    
-    //
-    // backing up, reflect test beam off diagonal
-    //
-    
-    colorTestRed();
-    var testBeam={};
-    testBeam.rightCubeTop = reflect(laser.upperCubeLeft, splitter.diagonal);
-    p = testBeam.rightCubeTop.intersection(splitter.right);
-    if (splitter.right.isIntersectedPointWithin(p) == false)
-        error("test beam missing right side of cube",p);
-    testBeam.rightCubeTop.p2=p;
-    testBeam.rightCubeTop.draw();
+			//
+			// backing up, reflect test beam off diagonal (this helps us position diverger and clip line)
+			//
+			
+			colorTestRed();
+			var testBeam={};
+			
+			testBeam.cubeRight = laser.incube.reflect(splitter.diagonal);
+			p = testBeam.cubeRight.intersect(splitter.right);
+			if (p!=null)
+				error("test beam missing right side of cube",p);
+			
+			
+			testBeam.cubeRight.draw();
+		}
+	}
+	else
+	{
+		// diverger at flat
+	}
+   
 
     testBeam.rightCubeBot = reflect(laser.upperCubeRight, splitter.diagonal);
     p = testBeam.rightCubeBot.intersection(splitter.right);
