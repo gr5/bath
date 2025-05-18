@@ -15,6 +15,7 @@ version
 0.9   Fixed bug for when mirror is F/4 and diverger F.L. is 13mm
 1.0   Added another focus point, f3; Added ability to rotate laser
 1.1   Added better error handling when beams miss a component
+1.2
 
 -->
 <head>
@@ -23,7 +24,7 @@ Bath Interferometer web tool/diagrammer/calculator
 </title>
 </head>
 <h2>Bath Interferometer web tool/diagrammer/calculator</h2>
-(ver 1.1)<br> 
+(ver 1.2)<br> 
 F ratio of mirror under test:
 <input type='text' size=3 value=3 onKeyUp=update() id='idFnum'>
 &nbsp;&nbsp;&nbsp;&nbsp;
@@ -511,6 +512,95 @@ class line
         
     }
     
+}
+
+class beam
+{
+    // consists of 2 lines
+    constructor(_l1, _l2)
+    {
+        this.lines = Array(2);
+        this.lines[0]=_l1;
+        this.lines[1]=_l2;
+    }
+    draw()
+    {
+        for(i=0;i<2;i++)
+            this.lines[i].draw();
+    }
+    
+    swap()
+    {
+        // swap p1 and p2
+        for(i=0;i<2;i++)
+        {
+            let temp_point = this.lines[i].p2;
+            this.lines[i].p2 = this.lines[i].p1;
+            this.lines[i].p1 = temp_point;
+    }
+    
+    setP2(p)
+    {
+        for(i=0;i<2;i++)
+        {
+            this.lines[i].p2 = p.copy();
+        }
+    }
+    
+    normalize(s)
+    {
+        @@
+    }
+    
+    reflect(mirror)
+    {
+        // p2 must be at mirror
+        let l1 = reflect(this.lines[0], mirror);
+        let l2 = reflect(this.lines[1], mirror);
+        return new beam(l1,l2)
+    }
+    
+    advance()
+    {
+        // p1 gets p2 and p2 continues farther along at same angle
+        for(i=0;i<2;i++)
+        {
+            let temp_point = this.lines[i].p2;
+            this.lines[i].p2 += (this.lines[i].p2 - this.lines[i].p1);
+            this.lines[i].p1 = temp_point;
+        }
+      
+    }
+    
+    intersect(l)
+    {
+      // intersects forward meaning p2 will be altered
+      // intersects both lines in our beam with this line segment
+      // returns null if successful, returns a point if part of the beam misses the line segment
+     let error=null;
+     for(i=0;i<2;i++)
+     {
+         let p = this.lines[i].intersection(l);
+         if (l.isIntersectedPointWithin(p) == false)
+           error=p;
+         l.p2 = p;
+     }
+     return error;
+    }
+    
+    refract(l,ior1,ior2)
+    {
+        // refracts this beam across line l.  returns new beam.  
+        //Beam p1 points must be in old medium and p2 must be on refraction line
+        let l1=refract(this.lines[0], l, ior1, ior2);
+        let l2=refract(this.lines[1], l, ior1, ior2);
+        return new beam(l1,l2);
+    }
+    
+    copy()
+    {
+        return new beam(lines[0].copy(), lines[1].copy);
+    }
 }
 
 
