@@ -15,7 +15,7 @@ version
 0.9   Fixed bug for when mirror is F/4 and diverger F.L. is 13mm
 1.0   Added another focus point, f3; Added ability to rotate laser
 1.1   Added better error handling when beams miss a component
-1.2   Added class beam,
+1.2   Added class beam, refactored everything to use class beam, added ability for diverger to be in front of flat
 
 -->
 <head>
@@ -89,15 +89,15 @@ Defocus:
 
 
 <br>
-Green dot is where to focus returning test beam when setting things up (temporarily lower bath so returning beam passes over splitter and flat) Formula is: beam_separation_distance + diverger_focal_length behind diverger)
+Green dot is where to focus returning test beam when setting things up (temporarily lower bath so returning beam passes over splitter and flat) Formula is: <span id=green_formula>beam_separation_distance + diverger_focal_length behind diverger</span>
 <br>
-Yellow dot is CoC of mirror being tested.  Measure from here to mirror surface and divide by 2 to find focal length of mirror.  Formula for CoC position is: beam_separation_distance/2 behind diverger
+Yellow dot is CoC of mirror being tested.  Measure from here to mirror surface and divide by 2 to find focal length of mirror.  Formula for CoC position is: <span id=yellow_formula>beam_separation_distance/2 behind diverger</span>
 <br>
 <input type=checkbox id=idLarge onchange="update()"><label for="idLarge">Larger diagram and hide drag handles</label>
 <br>
 <input type=checkbox id=idF3 onchange="update()"><label for="idF3">virtual focal point of exiting beams left side</label>
 <span id='idSpnF3'></span><br>
-<input type=checkbox id=idLowerDiverger onchange="update()" CHECKED><label for="idLowerDiverger">Move diverger to be in front of flat</label>
+<input type=checkbox id=idLowerDiverger onchange="update()"><label for="idLowerDiverger">Move diverger to be in front of flat</label>
 
 <h2><font color='red'><span id=idError>Problems detected: none</span></font></h2>
 <canvas id='idCanvas' width="1000" height="900" '></canvas>
@@ -982,6 +982,7 @@ function update()
     t_can.addEventListener("touchend", myUp, false);    
     t_can.addEventListener("touchmove", myMove, false);    
     
+	var mirrorFocus2;
     var lambda = .000655; // 655nm
     var shear = shear_waves * lambda * fnum;
     // shear_waves = shear_distance / lambda / fnum
@@ -995,8 +996,16 @@ function update()
     var defocus_mm = defocus*8*lambda*(fnum*2)*(fnum*2);
     document.getElementById('idSpnDefocus').innerHTML = "("+defocus_mm.toFixed(2)+"mm)";
 	
-    
 
+    if (bDivergerAtCube)
+		document.getElementById('green_formula').innerHTML="beam_separation_distance + diverger_focal_length behind diverger";
+	else
+		document.getElementById('green_formula').innerHTML="beam_separation_distance - diverger_focal_length in front of diverger";
+
+    if (bDivergerAtCube)
+		document.getElementById('yellow_formula').innerHTML="beam_separation_distance/2 behind diverger";
+	else
+		document.getElementById('yellow_formula').innerHTML="beam_separation_distance/2 in front of diverger";
     
     canvas_width = t_can.clientWidth;
     canvas_height = t_can.clientHeight;
@@ -1413,6 +1422,9 @@ function update()
 		testBeam.LeftOfCube = testBeam.leftCube.refract(splitter.left, IOR, 1);
 		testBeam.LeftOfCube.intersect(clip_line_left);
 		testBeam.LeftOfCube.draw();
+
+		mirrorFocus2 = testBeam.rightOfFlat.focusPoint();
+		mirrorFocus2.draw(0.1, "rgb(0,255,0)");
 		
 	}
 	else
@@ -1625,20 +1637,20 @@ function update()
 		refbeam.lowerCube.draw();
 		
 		// reflect refbeam off splitter diagonal
-		splitter.leftCube = refbeam.lowerCube.reflect(splitter.diagonal);
-		p = splitter.leftCube.intersect(splitter.left);
+		refbeam.leftCube = refbeam.lowerCube.reflect(splitter.diagonal);
+		p = refbeam.leftCube.intersect(splitter.left);
 		if (p!=null) error("",p);
-		splitter.leftCube.draw();
+		refbeam.leftCube.draw();
 		
 		//
 		// rebeam exits cube Left
 		//
 		
-		splitter.leftOfCube = splitter.leftCube.refract(splitter.left, IOR, 1);
+		refbeam.leftOfCube = refbeam.leftCube.refract(splitter.left, IOR, 1);
 		// extend to left edge of drawing
 		var clip_line_left = new line(new coord(2,0), new coord(2,1));		
-		splitter.leftOfCube.intersect(clip_line_left);
-		splitter.leftOfCube.draw();
+		refbeam.leftOfCube.intersect(clip_line_left);
+		refbeam.leftOfCube.draw();
 		
 		//
 		// testbeam returning from mirror
@@ -1659,7 +1671,7 @@ function update()
 		// move by beam shear
 		testBeam.focus_before_refraction.x -= shear;
 		// also move by defocus
-		testBeam.focus_before_refraction.y +=defocus_mm; // positive defocus means outside focus;
+		testBeam.focus_before_refraction.x +=defocus_mm; // positive defocus means outside focus;
 		
 		// create beam with all 4 points at focus (before refraction) but soon will *end* at focus
 		testBeam.rightOfCube = new beam(
@@ -1700,16 +1712,17 @@ function update()
 		// refract test beam out of cube
 		//
 		
-		testBeam.leftOfCube = testBeam.cubeRight.refract(splitter.left, IOR, 1);
-		testBeam.leftOfCube.intersect(clip_line_left);
-		testBeam.leftOfCube.draw();
+		testBeam.LeftOfCube = testBeam.cubeRight.refract(splitter.left, IOR, 1);
+		testBeam.LeftOfCube.intersect(clip_line_left);
+		testBeam.LeftOfCube.draw();
+
+		mirrorFocus2 = testBeam.rightOfCube.focusPoint();
+		mirrorFocus2.draw(0.1, "rgb(0,255,0)");
 		
 	}
 
     
     
-    var mirrorFocus2 = testBeam.rightOfFlat.focusPoint();
-    mirrorFocus2.draw(0.1, "rgb(0,255,0)");
     
     // find average of the two mirror focus points to get CoC of mirror
     var mirrorCoC = testBeam.focus.average(mirrorFocus2);
@@ -1734,10 +1747,22 @@ function update()
         ctx.font = '40px sans';
     else
         ctx.font = '20px sans';
+	var x,y;
     ctx.fillStyle="rgb(255,255,255)";
-    var y = (refbeam.rightOfFlat.lines[0].p2.y + refbeam.afterDiverger.lines[1].p1.y)/2;
+	if (bDivergerAtCube)
+	{
+		x = refbeam.rightOfFlat.lines[0].p2.x;
+		y = (refbeam.rightOfFlat.lines[0].p2.y + refbeam.afterDiverger.lines[1].p1.y)/2;
+	}
+	else
+	{
+		x = refbeam.toDiverger.lines[0].p1.x;
+		y = (refbeam.toDiverger.lines[0].p2.y + refbeam.rightOfCube.lines[1].p1.y)/2;
+	}
+	
+	
     ctx.fillText('To F/'+fnum+' mirror->', 
-                          (refbeam.rightOfFlat.lines[0].p2.x-5) * units_per_mm,
+                          (x-5) * units_per_mm,
                           (y+.5) * units_per_mm );    
     
 }
