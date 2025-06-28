@@ -15,8 +15,8 @@ version
 0.9   Fixed bug for when mirror is F/4 and diverger F.L. is 13mm
 1.0   Added another focus point, f3; Added ability to rotate laser
 1.1   Added better error handling when beams miss a component
-1.2
-
+1.2   Added class beam, refactored everything to use class beam, added ability for diverger to be in front of flat
+1.3   Adding ability to have diverger just below splitter
 -->
 <head>
 <title>
@@ -24,7 +24,7 @@ Bath Interferometer web tool/diagrammer/calculator
 </title>
 </head>
 <h2>Bath Interferometer web tool/diagrammer/calculator</h2>
-(ver 1.2)<br> 
+(ver 1.3)<br>
 F ratio of mirror under test:
 <input type='text' size=3 value=3 onKeyUp=update() id='idFnum'>
 &nbsp;&nbsp;&nbsp;&nbsp;
@@ -58,11 +58,11 @@ Laser beam offset from splitter center
 &nbsp;&nbsp;&nbsp;&nbsp;
 
 Laser beam rotation
-<input type='text' size=3 value=2 onKeyUp=update() id='idLaserRotation'>
+<input type='text' size=3 value=0 onKeyUp=update() id='idLaserRotation'>
 
 <br>
 Laser beam width(mm)
-<input type='text' size=3 value=5.2 onKeyUp=update() id='idLaserWidth'>
+<input type='text' size=3 value=2.6 onKeyUp=update() id='idLaserWidth'>
 
 
 <br>
@@ -89,14 +89,16 @@ Defocus:
 
 
 <br>
-Green dot is where to focus returning test beam when setting things up (temporarily lower bath so returning beam passes over splitter and flat) Formula is: beam_separation_distance + diverger_focal_length behind diverger)
+Green dot is where to focus returning test beam when setting things up (temporarily lower bath so returning beam passes over splitter and flat) Formula is: <span id=green_formula>beam_separation_distance + diverger_focal_length behind diverger</span>
 <br>
-Yellow dot is CoC of mirror being tested.  Measure from here to mirror surface and divide by 2 to find focal length of mirror.  Formula for CoC position is: beam_separation_distance/2 behind diverger
+Yellow dot is CoC of mirror being tested.  Measure from here to mirror surface and divide by 2 to find focal length of mirror.  Formula for CoC position is: <span id=yellow_formula>beam_separation_distance/2 behind diverger</span>
 <br>
 <input type=checkbox id=idLarge onchange="update()"><label for="idLarge">Larger diagram and hide drag handles</label>
 <br>
 <input type=checkbox id=idF3 onchange="update()"><label for="idF3">virtual focal point of exiting beams left side</label>
-<span id='idSpnF3'></span>
+<span id='idSpnF3'></span><br>
+<input type=checkbox id=idLowerDiverger onchange="update()"><label for="idLowerDiverger">Move diverger to be in front of flat</label><br>
+<input type=checkbox id=idLowerDiverger2 onchange="update()" CHECKED><label for="idLowerDiverger2">Move diverger to be just below splitter</label>
 
 <h2><font color='red'><span id=idError>Problems detected: none</span></font></h2>
 <canvas id='idCanvas' width="1000" height="900" '></canvas>
@@ -270,6 +272,8 @@ function create_handles()
     }
     h.dragto=function(deltax,dy)
     {
+	  var bDivergerBelowCube = document.getElementById('idLowerDiverger2').checked;
+	  if (bDivergerBelowCube)deltax=dy;
       document.getElementById('idDivergerDist').value = h.startVal+deltax;
       update();
 	  if (bError)
@@ -455,6 +459,7 @@ class line
     
     isIntersectedPointWithin(p)
     {
+	  // assumes p is on the line
       var smidge=0.01;//mm - if within 0.01mm
       return (
             p.x+smidge >= min(this.p1.x, this.p2.x) &&
@@ -537,6 +542,7 @@ class beam
             let temp_point = this.lines[i].p2;
             this.lines[i].p2 = this.lines[i].p1;
             this.lines[i].p1 = temp_point;
+		}
     }
     
     setP2(p)
@@ -547,10 +553,6 @@ class beam
         }
     }
     
-    normalize(s)
-    {
-        @@
-    }
     
     reflect(mirror)
     {
@@ -559,19 +561,56 @@ class beam
         let l2 = reflect(this.lines[1], mirror);
         return new beam(l1,l2)
     }
-    
+
+    swap()
+	{
+        // swap p1 and p2
+        for(i=0;i<2;i++)
+        {
+            let temp_point = this.lines[i].p2;
+			this.lines[i].p2 = this.lines[i].p1;
+			this.lines[i].p1 = temp_point;
+        }
+	}
+
+	shiftx(shift)
+	{
+		// move all 4 points in x direction
+        for(i=0;i<2;i++)
+        {
+			this.lines[i].p1.x += shift;
+			this.lines[i].p2.x += shift;
+        }
+	}
+	
+	shifty(shift)
+	{
+		// move all 4 points in y direction
+        for(i=0;i<2;i++)
+        {
+			this.lines[i].p1.y += shift;
+			this.lines[i].p2.y += shift;
+        }
+	}
+	
     advance()
     {
         // p1 gets p2 and p2 continues farther along at same angle
         for(i=0;i<2;i++)
         {
-            let temp_point = this.lines[i].p2;
-            this.lines[i].p2 += (this.lines[i].p2 - this.lines[i].p1);
+            let temp_point = this.lines[i].p2.copy();
+            this.lines[i].p2.x += (this.lines[i].p2.x - this.lines[i].p1.x);
+            this.lines[i].p2.y += (this.lines[i].p2.y - this.lines[i].p1.y);
             this.lines[i].p1 = temp_point;
         }
       
     }
     
+	focusPoint()
+	{
+		return this.lines[0].intersection(this.lines[1]);
+	}
+	
     intersect(l)
     {
       // intersects forward meaning p2 will be altered
@@ -581,9 +620,9 @@ class beam
      for(i=0;i<2;i++)
      {
          let p = this.lines[i].intersection(l);
+         this.lines[i].p2 = p;
          if (l.isIntersectedPointWithin(p) == false)
            error=p;
-         l.p2 = p;
      }
      return error;
     }
@@ -599,7 +638,7 @@ class beam
     
     copy()
     {
-        return new beam(lines[0].copy(), lines[1].copy);
+        return new beam(this.lines[0].copy(), this.lines[1].copy());
     }
 }
 
@@ -773,8 +812,10 @@ var c_size;
 var splitter={}; // contains: unit, tl (topleft),tr,bl,br,W (width),H,center, angle (cw rotation)
                  // also lines: top,bottom,left,right,diagonal
 var lens={};
-var laser={}; // leftLine, rightLine
+var laser={};
 var refbeam={};
+var testBeam={};
+
 var diverger=new line(new coord(0,0), new coord(0,0)); // also: center
 var flat=new line(new coord(0,0), new coord(0,0)); // also: center
 var coRefBeamBlue ="rgb(80,80,255)";
@@ -901,6 +942,9 @@ function update()
     var t_can = document.getElementById('idCanvas');
     bLarge = document.getElementById('idLarge').checked;
     bF3 = document.getElementById('idF3').checked;
+	var bDivergerAtCube = !document.getElementById('idLowerDiverger').checked; // right of cube
+	var bDivergerBelowCube = document.getElementById('idLowerDiverger2').checked;
+
     if (bLarge)
     {
         t_can.width=1700;
@@ -942,6 +986,7 @@ function update()
     t_can.addEventListener("touchend", myUp, false);    
     t_can.addEventListener("touchmove", myMove, false);    
     
+	var mirrorFocus2;
     var lambda = .000655; // 655nm
     var shear = shear_waves * lambda * fnum;
     // shear_waves = shear_distance / lambda / fnum
@@ -954,15 +999,32 @@ function update()
     
     var defocus_mm = defocus*8*lambda*(fnum*2)*(fnum*2);
     document.getElementById('idSpnDefocus').innerHTML = "("+defocus_mm.toFixed(2)+"mm)";
-    
-
+	
+if (bDivergerBelowCube)
+	{
+		// third way - diverger below cube and above flat
+		document.getElementById('yellow_formula').innerHTML="(no simple formula)";
+		document.getElementById('green_formula').innerHTML="(no simple formula)";
+	}
+    else if (bDivergerAtCube)
+	{
+		// original way - Dale version
+		document.getElementById('yellow_formula').innerHTML="beam_separation_distance/2 behind diverger";
+		document.getElementById('green_formula').innerHTML="beam_separation_distance + diverger_focal_length behind diverger";
+	}
+    else
+	{
+		// Second way - worst way - stupidest way - diverger right of flat
+		document.getElementById('yellow_formula').innerHTML="beam_separation_distance/2 in front of diverger";
+		document.getElementById('green_formula').innerHTML="beam_separation_distance - diverger_focal_length in front of diverger";
+	}
     
     canvas_width = t_can.clientWidth;
     canvas_height = t_can.clientHeight;
     c_size = min(canvas_width, canvas_height);
     
     splitter.unit = max(splitter.W,splitter.H);
-    mm_width_needed = splitter.unit*2.5 + splitterToDiverger;
+    mm_width_needed = max(splitter.unit,9)*2.5 + splitterToDiverger;
     
     units_per_mm = canvas_height/mm_width_needed;
     
@@ -1019,10 +1081,27 @@ function update()
     
 
     // diverger initial guess
-    diverger.p1.x = splitter.center.x + splitterToDiverger;
-    diverger.p1.y=0;
-    diverger.p2 = diverger.p1.copy();
-    diverger.p2.y=1;
+	if (bDivergerBelowCube)
+	{
+		diverger.p1.y = splitter.center.y + splitterToDiverger;
+		diverger.p1.x=0;
+		diverger.p2 = diverger.p1.copy();
+		diverger.p2.x=1;
+	}
+	else
+	{
+		diverger.p1.x = splitter.center.x + splitterToDiverger;
+		diverger.p1.y=0;
+		diverger.p2 = diverger.p1.copy();
+		diverger.p2.y=1;
+	}
+	
+	// clip line where lines stop on right side of display
+	var clip_line = splitter.right.copy();
+    clip_line.p1.x+=splitter.unit+splitterToDiverger-splitter.W/2;
+    clip_line.p2.x+=splitter.unit+splitterToDiverger-splitter.W/2;
+	
+	
     
     //
     // calc and draw laser to cube
@@ -1030,14 +1109,15 @@ function update()
 
     top_laser = min(splitter.tl.y, splitter.tr.y)-splitter.unit/4;
     x_center_laser = splitter.center.x + laserX;
-    laser.leftLine = new line( new coord(x_center_laser - laserW/2, top_laser),
-                               new coord(x_center_laser - laserW/2, top_laser+1));
+	laser.start = new beam(
+                           new line( new coord(x_center_laser - laserW/2, top_laser),
+                                     new coord(x_center_laser - laserW/2, top_laser+1)),
 
-    laser.rightLine = new line( new coord(x_center_laser + laserW/2, top_laser),
-                               new coord(x_center_laser + laserW/2, top_laser+1));
+                           new line( new coord(x_center_laser + laserW/2, top_laser),
+                                     new coord(x_center_laser + laserW/2, top_laser+1)));
 
-    laser.leftLine.p1.rotate(laser.leftLine.p2, laser_rotation);
-    laser.rightLine.p1.rotate(laser.rightLine.p2, laser_rotation);
+	for(i=0;i<2;i++)
+		laser.start.lines[i].p1.rotate(laser.start.lines[i].p2, laser_rotation);
                                
 
     if (bLarge)
@@ -1059,531 +1139,948 @@ function update()
     drag_handles['laser_rot'].draw();       
     
     // intersect these 2 lines with the cube top
-    var p = laser.leftLine.intersection(splitter.top);
-    if (p.parallel)
-       error("Cube rotated too much",p);
-    if (splitter.top.isIntersectedPointWithin(p) == false)
+	var p = laser.start.intersect(splitter.top);
+    if (p !== null)
        error("laser missing cube",p);
-    laser.leftLine.p2 = p;
-    p = laser.rightLine.intersection(splitter.top);
-    if (p.parallel)
-       error("Cube rotated too much"); // this can be ignored as other errors will occur as well
-    if (splitter.top.isIntersectedPointWithin(p) == false)
-       error("laser missing cube",p);
-    laser.rightLine.p2 = p;
-                                   
     
     ctx.lineWidth=1;
     ctx.strokeStyle="rgb(255,0,255)";
-    laser.leftLine.draw();
-    laser.rightLine.draw();
+    laser.start.draw();
     
     //
     // refract laser through cube
     //
-    ctx.lineWidth=1;
-    ctx.strokeStyle="rgb(255,0,255)";
     
-    //laser.upperCubeLeft = new line(laser.leftLine.p2, laser.leftLine.p2.copy());
-    
-    laser.upperCubeLeft = refract(laser.leftLine, splitter.top, 1, IOR);
-    laser.upperCubeRight = refract(laser.rightLine, splitter.top, 1, IOR);
-    // now that they are refracted, extend to split diagonal
-    p = laser.upperCubeLeft.intersection(splitter.diagonal);
-    if (splitter.diagonal.isIntersectedPointWithin(p) == false)
+	laser.incube = laser.start.refract(splitter.top,1,IOR);
+    var p = laser.incube.intersect(splitter.diagonal)
+	if (p !== null)
         error("laser missing diagonal",p);
-    laser.upperCubeLeft.p2 = p;
-    p = laser.upperCubeRight.intersection(splitter.diagonal);
-    if (splitter.diagonal.isIntersectedPointWithin(p) == false)
-        error("laser missing diagonal",p);
-    laser.upperCubeRight.p2 = p;
-
-    // draw upper
-    laser.upperCubeLeft.draw();
-    laser.upperCubeRight.draw();
-    
-    // now do lower laser aka ref beam
-    colorRefBlue();
-
-    laser.lowerCubeLeft = laser.upperCubeLeft.copy();
-    laser.lowerCubeRight = laser.upperCubeRight.copy();
-
-    p = laser.lowerCubeLeft.intersection(splitter.bottom);
-    if (splitter.bottom.isIntersectedPointWithin(p) == false)
-        error("laser missing bottom of cube",p);
-    laser.lowerCubeLeft.p1=laser.lowerCubeLeft.p2;
-    laser.lowerCubeLeft.p2=p;
-
-    p = laser.lowerCubeRight.intersection(splitter.bottom);
-    if (splitter.bottom.isIntersectedPointWithin(p) == false)
-        error("laser missing bottom of cube",p);
-    laser.lowerCubeRight.p1=laser.lowerCubeRight.p2;
-    laser.lowerCubeRight.p2=p;
-
-    laser.lowerCubeLeft.draw();
-    laser.lowerCubeRight.draw();
-    
-    //
-    // time to calculate and draw flat because above information is useful for positioning the flat
-    //
-    
-    
-    if (dragging !== null && dragging === drag_handles['flat'])
-    {
-        // flat is being dragged!
-        flat.center = drag_handles['flat'].flatCenter; // restore saved value
-        flat.p1 = flat.center.copy();
-        flat.p2 = flat.center.copy();
-        flat.p1.x -= flatwidth*.3536; // sqrt(2)/4  or .707/2
-        flat.p1.y -= flatwidth*.3536;    
-        flat.p2.x += flatwidth*.3536;    
-        flat.p2.y += flatwidth*.3536;
-        flat.p1.rotate(flat.center, splitter.angle);
-        flat.p2.rotate(flat.center, splitter.angle);        
-    }
-    else
-    {
-        // not being dragged
-        /*
-        flat.center = splitter.center.copy();
-        flat.center.y = max(splitter.bl.y, splitter.br.y)+1+flatwidth*.3536;
-        flat.center.x += laserX;
-        drag_handles['flat'].defaultCenter = flat.center.copy();
-        */
-        
-        flat.p1.x = laser.lowerCubeLeft.p2.x - 0.2; // .2mm left of where laser comes out of bottom of cube
-        flat.p1.y = laser.lowerCubeLeft.p2.y + 0.2; // .2mm below where laser comes out of bottom of cube
-        if (splitter.angle - laser_rotation < 0)
-        {
-            var adjust_y = Math.sin(laser_rotation-splitter.angle)*splitter.br.lengthTo(laser.lowerCubeLeft.p2); // move down a bit more so beam misses bot right corner of splitter         
-            flat.p1.y += adjust_y;
-            flat.p1.x -= adjust_y*Math.sin(laser_rotation-splitter.angle);
-        }
-
-        flat.p2 = flat.p1.copy();
-        flat.p2.x += flatwidth*.7071; // assume 45 degrees initially
-        flat.p2.y += flatwidth*.7071;
-        flat.center = flat.p1.average(flat.p2);
-        flat.center.rotate(flat.p1, splitter.angle);
-        flat.p2.rotate(flat.p1, splitter.angle);
-        drag_handles['flat'].defaultCenter = flat.center.copy();
-    }
-
-    
-    
-    
-    ctx.strokeStyle="rgb(255,255,255)";
-    flat.draw();
-    
-    flat.handle = new coord(flat.center.x-1.5, flat.center.y+1.5);
-    flat.handle.rotate(flat.center, splitter.angle);
-    drag_handles['flat'].place(flat.handle.x, flat.handle.y);
-    drag_handles['flat'].draw();
-    drag_handles['flat'].flatCenter = flat.center; // save this for later      
-    
-    
-    p = flat.intersection(splitter.bottom);
-    if (flat.isIntersectedPointWithin(p))
-        error("flat hits splitter",p);
-
-    
-    //
-    // refract reference beam out bottom of splitter cube
-    //
-
-    colorRefBlue();
-    refbeam.belowCubeA = refract(laser.lowerCubeLeft, splitter.bottom, IOR, 1);
-    refbeam.belowCubeB = refract(laser.lowerCubeRight, splitter.bottom, IOR, 1);
-    
-    // extend to flat
-    p = refbeam.belowCubeA.intersection(flat);
-    if (flat.isIntersectedPointWithin(p) == false)
-        error("ref beam misses flat",p);
-    refbeam.belowCubeA.p2 = p;
-    p = refbeam.belowCubeB.intersection(flat);
-    if (flat.isIntersectedPointWithin(p) == false)
-        error("ref beam misses flat",p);
-    refbeam.belowCubeB.p2 = p;
-    
-    refbeam.belowCubeA.draw();
-    refbeam.belowCubeB.draw();
-    
-
-    
-    //
-    // backing up, reflect test beam off diagonal
-    //
-    
-    colorTestRed();
-    var testBeam={};
-    testBeam.rightCubeTop = reflect(laser.upperCubeLeft, splitter.diagonal);
-    p = testBeam.rightCubeTop.intersection(splitter.right);
-    if (splitter.right.isIntersectedPointWithin(p) == false)
-        error("test beam missing right side of cube",p);
-    testBeam.rightCubeTop.p2=p;
-    testBeam.rightCubeTop.draw();
-
-    testBeam.rightCubeBot = reflect(laser.upperCubeRight, splitter.diagonal);
-    p = testBeam.rightCubeBot.intersection(splitter.right);
-    if (splitter.right.isIntersectedPointWithin(p) == false)
-        error("test beam missing right side of cube",p);
-    testBeam.rightCubeBot.p2=p;
-    testBeam.rightCubeBot.draw();
-    
-    //
-    // refract test beam out of cube to diverger
-    //
-    
-    testBeam.toDivergerTop = refract(testBeam.rightCubeTop, splitter.right,IOR,1);
-    p = testBeam.toDivergerTop.intersection(diverger);
-    testBeam.toDivergerTop.p2=p;
-    testBeam.toDivergerTop.draw();
-    testBeam.toDivergerBot = refract(testBeam.rightCubeBot, splitter.right,IOR,1);
-    p = testBeam.toDivergerBot.intersection(diverger);
-    testBeam.toDivergerBot.p2=p;
-    testBeam.toDivergerBot.draw();
-    
 
 
+    // draw laser in cube
+	laser.incube.draw();
+    
+	if (bDivergerAtCube && !bDivergerBelowCube)
+	{
+		// diverger at cube
+		// now do lower laser aka ref beam
+		colorRefBlue();
+		refbeam.lowercube = laser.incube.copy();
+		refbeam.lowercube.advance();
+		p = refbeam.lowercube.intersect(splitter.bottom);
+		if (p != null)
+			error("laser missing bottom of cube",p);
+		refbeam.lowercube.draw();
+		
+		//
+		// time to calculate and draw flat because above information is useful for positioning the flat
+		//
 
-    // 
-    // now position and draw diverger    
-    // 
-    
-    diverger.len=min(10,diverger.fl);
-    diverger.center = new coord(diverger.p1.x, avg(testBeam.toDivergerTop.p2.y, testBeam.toDivergerBot.p2.y));
-    diverger.p1 = diverger.center.copy();
-    diverger.p2 = diverger.center.copy();
-    diverger.p1.y -= diverger.len/2;
-    diverger.p2.y += diverger.len/2;
-    ctx.strokeStyle="rgb(255,255,255)";    
-    diverger.draw();
-    
-    ctx.beginPath();
-    //lineto(diverger.p1.x+.5, diverger.p1.y);
-    var rad_center_offset = diverger.len*1.9; // also a fudge
-    var angle = .25; // radians - this is a fudge
-    moveto(diverger.p1.x, diverger.p1.y);
-    arc(diverger.center.x-rad_center_offset, diverger.center.y, diverger.len*2, -angle,angle,false);
-    arc(diverger.center.x+rad_center_offset, diverger.center.y, diverger.len*2, 
-         Math.PI-angle,Math.PI+angle,false);
-    lineto(diverger.p1.x, diverger.p1.y);
-    
-    ctx.stroke();  
-    
-    drag_handles['diverger'].place(diverger.center.x, diverger.center.y - diverger.len*.75);
-    drag_handles['diverger'].draw();
+		if (dragging !== null && dragging === drag_handles['flat'])
+		{
+			// flat is being dragged!
+			flat.center = drag_handles['flat'].flatCenter; // restore saved value
+			flat.p1 = flat.center.copy();
+			flat.p2 = flat.center.copy();
+			flat.p1.x -= flatwidth*.3536; // sqrt(2)/4  or .707/2
+			flat.p1.y -= flatwidth*.3536;    
+			flat.p2.x += flatwidth*.3536;    
+			flat.p2.y += flatwidth*.3536;
+			flat.p1.rotate(flat.center, splitter.angle);
+			flat.p2.rotate(flat.center, splitter.angle);        
+		}
+		else
+		{
+			
+			flat.p1.x = refbeam.lowercube.lines[0].p2.x - 0.2; // .2mm left of where laser comes out of bottom of cube
+			flat.p1.y = refbeam.lowercube.lines[0].p2.y + 0.2; // .2mm below where laser comes out of bottom of cube
+			if (splitter.angle - laser_rotation < 0)
+			{
+				var adjust_y = Math.sin(laser_rotation-splitter.angle)*splitter.br.lengthTo(refbeam.lowercube.lines[0].p2); // move down a bit more so beam misses bot right corner of splitter         
+				flat.p1.y += adjust_y;
+				flat.p1.x -= adjust_y*Math.sin(laser_rotation-splitter.angle);
+			}
 
+			flat.p2 = flat.p1.copy();
+			flat.p2.x += flatwidth*.7071; // assume 45 degrees initially
+			flat.p2.y += flatwidth*.7071;
+			flat.center = flat.p1.average(flat.p2);
+			flat.center.rotate(flat.p1, splitter.angle);
+			flat.p2.rotate(flat.p1, splitter.angle);
+			drag_handles['flat'].defaultCenter = flat.center.copy();
 
-    if (pointInsideSplitter(diverger.p1))
-		error("diverger inside splitter",diverger.p1);
-    if (pointInsideSplitter(diverger.p2))
-		error("diverger inside splitter",diverger.p2);
+			
+		}
+		ctx.strokeStyle="rgb(255,255,255)";
+		
+		flat.handle = new coord(flat.center.x-1.5, flat.center.y+1.5);
+		flat.handle.rotate(flat.center, splitter.angle);
+		drag_handles['flat'].place(flat.handle.x, flat.handle.y);
+		drag_handles['flat'].draw();
+		drag_handles['flat'].flatCenter = flat.center; // save this for later
 
-    p = diverger.intersection(flat);
-    if (diverger.isIntersectedPointWithin(p))
-        error("diverger hits flat",p);
+		p = flat.intersection(splitter.bottom);
+		if (flat.isIntersectedPointWithin(p))
+			error("flat hits splitter",p);
+		flat.draw();
 
+		//
+		// refract reference beam out bottom of splitter cube
+		//
 
-    //
-    // focus test beam through diverger
-    //
-    
-    var vector = testBeam.toDivergerTop.getVector();
-    vector.normalize();
-    vector.scale(diverger.fl);
-    testBeam.focus = diverger.center.copy();
-    testBeam.focus.add(vector);
+		colorRefBlue();
+		
+		refbeam.belowCube = refbeam.lowercube.refract(splitter.bottom, IOR, 1);
+		p = refbeam.belowCube.intersect(flat)
+		if (p!=null)
+			error("ref beam misses flat",p);
+		refbeam.belowCube.draw();
 
-    testBeam.afterDivergerTop = testBeam.toDivergerTop.copy();
-    testBeam.afterDivergerTop.swap();
-    testBeam.afterDivergerTop.p2 = testBeam.focus.copy();
-    testBeam.afterDivergerBot = testBeam.toDivergerBot.copy();
-    testBeam.afterDivergerBot.swap();
-    testBeam.afterDivergerBot.p2 = testBeam.focus.copy();
-    
-    // extend another focal length to the right or so
-    var clip_line = diverger.copy();
-    clip_line.p1.x+=splitter.unit;
-    clip_line.p2.x+=splitter.unit;
-    
-    //clip_line.draw();
-    p = testBeam.afterDivergerTop.intersection(clip_line);
-    testBeam.afterDivergerTop.p2=p;
-    p = testBeam.afterDivergerBot.intersection(clip_line);
-    testBeam.afterDivergerBot.p2=p;
-    
+		// reflect refbeam off flat
+		refbeam.rightOfFlat = refbeam.belowCube.reflect(flat);
+		refbeam.rightOfFlat.intersect(clip_line);
+		
+		refbeam.rightOfFlat.draw();
 
-    colorTestRed();
-    testBeam.afterDivergerTop.draw();
-    testBeam.afterDivergerBot.draw();
-    
-    
-    // save intersection of above 2 lines
-    var mirrorFocus1 = testBeam.afterDivergerTop.intersection(testBeam.afterDivergerBot);
-
-    
-    //
-    // backing up to flat, reflect reFbeam off flat
-    //
-
-    refbeam.rightOfFlatA = reflect(refbeam.belowCubeA, flat);
-    refbeam.rightOfFlatB = reflect(refbeam.belowCubeB, flat);
-    
-    colorRefBlue();
-
-    
-    // now extend to clip_line
-    refbeam.rightOfFlatA.p2 = refbeam.rightOfFlatA.intersection(clip_line);
-    refbeam.rightOfFlatB.p2 = refbeam.rightOfFlatB.intersection(clip_line);
-    
-    refbeam.rightOfFlatA.draw();
-    refbeam.rightOfFlatB.draw();
-
-
-    //
-    // returning reference beam - find focus 
-    //
-    
-    colorRefBlue();
-    vector = testBeam.toDivergerTop.getVector();
-    vector.rotate180();
-    vector.normalize();
-    vector.scale(diverger.fl);
-    var testBeamRightOfSplitterAngle = vector.copy(); // save for later
-    refbeam.focus_before_refraction = diverger.center.copy();
-    refbeam.focus_before_refraction.add(vector);
-    
-    // now we need to correct the focus by the amount of fringe tilt
-    //refbeam.focus_before_refraction.y += shear;
-
-    // now we aim for this new focus and intersect with cube.right
-    refbeam.afterDivergerTop = testBeam.toDivergerTop.copy();
-    refbeam.afterDivergerTop.swap();
-    refbeam.afterDivergerTop.p1.y -= shear;
-    refbeam.afterDivergerTop.p2 = refbeam.focus_before_refraction.copy();
-    
-    p = refbeam.afterDivergerTop.intersection(splitter.right);
-    if (splitter.right.isIntersectedPointWithin(p) == false)
-        error("returning reference beam missing right side of cube",p);
-    refbeam.afterDivergerTop.p2=p;
-
-    refbeam.afterDivergerBot = testBeam.toDivergerBot.copy();
-    refbeam.afterDivergerBot.swap();
-    refbeam.afterDivergerBot.p1.y -= shear;
-    refbeam.afterDivergerBot.p2 = refbeam.focus_before_refraction.copy();
-    
-    p = refbeam.afterDivergerBot.intersection(splitter.right);
-    if (splitter.right.isIntersectedPointWithin(p) == false)
-        error("returning reference beam missing right side of cube",p);
-    refbeam.afterDivergerBot.p2=p;
-    
-    refbeam.afterDivergerTop.draw();
-    refbeam.afterDivergerBot.draw();
-    
-    
-    // draw even more to the right - the reference beam
-    refbeam.rightOfDivergerTop = refbeam.afterDivergerTop.copy();
-    refbeam.rightOfDivergerTop.p2 = refbeam.rightOfDivergerTop.p1.copy();
-    refbeam.rightOfDivergerTop.p2.add(testBeamRightOfSplitterAngle);
-    refbeam.rightOfDivergerBot = refbeam.afterDivergerBot.copy();
-    refbeam.rightOfDivergerBot.p2 = refbeam.rightOfDivergerBot.p1.copy();
-    refbeam.rightOfDivergerBot.p2.add(testBeamRightOfSplitterAngle);
-    // extend to clip
-    refbeam.rightOfDivergerTop.p2 = refbeam.rightOfDivergerTop.intersection(clip_line);
-    refbeam.rightOfDivergerBot.p2 = refbeam.rightOfDivergerBot.intersection(clip_line);
+		//
+		// backing up, reflect test beam off diagonal (this helps us position diverger and clip line)
+		//
+		
+		colorTestRed();
+		
+		testBeam.cubeRight = laser.incube.reflect(splitter.diagonal);
+		p = testBeam.cubeRight.intersect(splitter.right);
+		if (p!=null)
+			error("test beam missing right side of cube",p);
+		
+		
+		testBeam.cubeRight.draw();
+		
+		//
+		// refract test beam out of cube to diverger
+		//
+		
+		testBeam.toDiverger = testBeam.cubeRight.refract(splitter.right,IOR,1);
+		testBeam.toDiverger.intersect(diverger);
+		
+		testBeam.toDiverger.draw();
+		
+		// 
+		// now position and draw diverger    
+		// 
+		
+		diverger.len=min(6,diverger.fl);
+		diverger.center = new coord(diverger.p1.x, avg(testBeam.toDiverger.lines[0].p2.y, testBeam.toDiverger.lines[1].p2.y));
+		diverger.p1 = diverger.center.copy();
+		diverger.p2 = diverger.center.copy();
+		diverger.p1.y -= diverger.len/2;
+		diverger.p2.y += diverger.len/2;
+		ctx.strokeStyle="rgb(255,255,255)";    
+		diverger.draw();
+		
+		ctx.beginPath();
+		var rad_center_offset = diverger.len*1.9; // also a fudge
+		var angle = .25; // radians - this is a fudge
+		moveto(diverger.p1.x, diverger.p1.y);
+		arc(diverger.center.x-rad_center_offset, diverger.center.y, diverger.len*2, -angle,angle,false);
+		arc(diverger.center.x+rad_center_offset, diverger.center.y, diverger.len*2, 
+			 Math.PI-angle,Math.PI+angle,false);
+		lineto(diverger.p1.x, diverger.p1.y);
+		
+		ctx.stroke();  
+		
+		drag_handles['diverger'].place(diverger.center.x, diverger.center.y - diverger.len*.75);
+		drag_handles['diverger'].draw();
 
 
+		if (pointInsideSplitter(diverger.p1))
+			error("diverger inside splitter",diverger.p1);
+		if (pointInsideSplitter(diverger.p2))
+			error("diverger inside splitter",diverger.p2);
 
-    //ctx.strokeStyle="rgb(0,200,200)";
-    refbeam.rightOfDivergerTop.draw();
-    refbeam.rightOfDivergerBot.draw();
-    colorRefBlue();
-    
-    
-    // refract the two beams into the cube and see where they cross
-    var splitter_right = splitter.right.copy();
-    splitter_right.swap();
-    refbeam.convergingTop = refract(refbeam.afterDivergerTop, splitter_right, 1, IOR);
-    refbeam.convergingBot = refract(refbeam.afterDivergerBot, splitter_right, 1, IOR);
-    
-    refbeam.focus=refbeam.convergingTop.intersection(refbeam.convergingBot);
+		p = diverger.intersection(flat);
+		if (diverger.isIntersectedPointWithin(p))
+			error("diverger hits flat",p);
 
-    p=refbeam.convergingTop.intersection(splitter.left);
-    if (splitter.left.isIntersectedPointWithin(p) == false)
-        error("reference beam cone(t) clipped within prism",p);
-    refbeam.convergingTop.p2=p;
+		//
+		// focus test beam through diverger
+		//
+		
+		colorTestRed();
 
-    p=refbeam.convergingBot.intersection(splitter.left);
-    if (splitter.left.isIntersectedPointWithin(p) == false)
-        error("reference beam cone(b) clipped within prism",p);
-    refbeam.convergingBot.p2=p;
+		var vector = testBeam.toDiverger.lines[0].getVector();
+		vector.normalize();
+		vector.scale(diverger.fl);
+		testBeam.focus = diverger.center.copy();
+		testBeam.focus.add(vector);
+		
+		testBeam.afterDiverger = testBeam.toDiverger.copy();
+		testBeam.afterDiverger.advance();
+		testBeam.afterDiverger.setP2(testBeam.focus);
+		testBeam.afterDiverger.intersect(clip_line);
+		testBeam.afterDiverger.draw();
+
+		//
+		// returning reference beam - draw right to left
+		//
+		
+		colorRefBlue();
+		refbeam.toDiverger = testBeam.toDiverger.copy();
+		refbeam.toDiverger.intersect(clip_line);
+		refbeam.toDiverger.swap();
+		refbeam.toDiverger.intersect(diverger);
+		refbeam.toDiverger.shifty(-shear);
+		refbeam.toDiverger.draw();
+		
+		
+		//
+		// calculate focus point (not affected by shear)
+		//
+		
+		vector.rotate180();
+		vector.normalize();
+		vector.scale(diverger.fl);
+		var testBeamRightOfSplitterAngle = vector.copy(); // save for later
+		refbeam.focus_before_refraction = diverger.center.copy();
+		refbeam.focus_before_refraction.add(vector);
+		
+		//refbeam.focus_before_refraction.draw();
+		
+		// ref beam after diverger
+		
+		refbeam.afterDiverger = refbeam.toDiverger.copy();
+		refbeam.afterDiverger.advance();
+		refbeam.afterDiverger.setP2(refbeam.focus_before_refraction);
+		p = refbeam.afterDiverger.intersect(splitter.right);
+		if (p != null)
+			error("returning reference beam missing right side of cube",p);
+		refbeam.afterDiverger.draw();
+		
+		// refbeam in cube
+		var splitter_right = splitter.right.copy();
+		splitter_right.swap(); // refract function expects the points swapped - don't remember why
+		refbeam.incube = refbeam.afterDiverger.refract(splitter_right, 1, IOR);
+		p = refbeam.incube.intersect(splitter.left);
+		if (p!=null)
+			error("reference beam cone clipped within prism",p);
+		refbeam.incube.draw();
+		
+		// refbeam left of cube
+		refbeam.leftOfCube = refbeam.incube.refract(splitter.left, IOR, 1);
+		
+		// extend to left edge of drawing
+		var clip_line_left = new line(new coord(2,0), new coord(2,1));
+		refbeam.leftOfCube.intersect(clip_line_left);
+		refbeam.leftOfCube.draw();
+		
+		//
+		// testbeam returning from mirror
+		//
+		
+		colorTestRed();
+		
+		// reflect focus point across splitter diagonal
+		testBeam.focus_before_refraction = reflectPointAcrossLine(splitter.diagonal, refbeam.focus_before_refraction);
+		// move by beam shear
+		testBeam.focus_before_refraction.x -= shear;
+		// also move by defocus
+		testBeam.focus_before_refraction.y +=defocus_mm; // positive defocus means outside focus;
+		
+		// create beam with all 4 points at focus (before refraction) but soon will *end* at focus
+		testBeam.justBelowCube = new beam(
+			new line(testBeam.focus_before_refraction.copy(), testBeam.focus_before_refraction.copy()),
+			new line(testBeam.focus_before_refraction.copy(), testBeam.focus_before_refraction.copy()));
+		
+		// adjust beam start to represent f/# of mirror being tested
+		testBeam.fratio = fnum*2;
+		testBeam.justBelowCube.lines[0].p1.x += 2;
+		testBeam.justBelowCube.lines[1].p1.x -= 2;
+		testBeam.justBelowCube.lines[0].p1.y += 4*testBeam.fratio;
+		testBeam.justBelowCube.lines[1].p1.y += 4*testBeam.fratio;
+		
+		// rotate by same amount as laser
+		for(i=0;i<2;i++)
+			testBeam.justBelowCube.lines[i].p1.rotate(testBeam.justBelowCube.lines[i].p2, laser_rotation);
+
+		// now intersect these beams with both the cube bottom and the flat.  It doesn't matter if the
+		// focus is inside or outside the cube.  Before or after the diagonal.  The rest will just work!
+
+		
+		// intersect with bottom of cube
+		testBeam.justBelowCube.intersect(splitter.bottom);
+
+		// intersect with flat
+		testBeam.justBelowCube.swap(); // now light aiming down (backwards temporarily)
+		p = testBeam.justBelowCube.intersect(flat);
+		if (p != null)
+			error("returning test beam misses flat",p);
+
+
+		testBeam.justBelowCube.draw();
+		
+		// reflect off flat backwards to the right
+		testBeam.rightOfFlat = testBeam.justBelowCube.reflect(flat);
+		testBeam.rightOfFlat.intersect(clip_line);
+		testBeam.rightOfFlat.draw();
+
+		// refract into cube
+		testBeam.justBelowCube.swap(); // want this to point back up into the cube again
+		splitter.bottom.swap();
+		testBeam.lowerCube = testBeam.justBelowCube.refract(splitter.bottom,1,IOR);
+		p = testBeam.lowerCube.intersect(splitter.diagonal);
+		if (p!=null)
+			error("returning test beam misses diagonal",p);
+		
+		testBeam.lowerCube.draw();
+		
+		// reflect off diagonal
+		testBeam.leftCube = testBeam.lowerCube.reflect(splitter.diagonal);
+		p = testBeam.leftCube.intersect(splitter.left);
+		if (p!=null)
+			error("returning test beam misses rear of splitter",p);
+		testBeam.leftCube.draw();
+		
+		// refract out of cube
+		testBeam.LeftOfCube = testBeam.leftCube.refract(splitter.left, IOR, 1);
+		testBeam.LeftOfCube.intersect(clip_line_left);
+		testBeam.LeftOfCube.draw();
+
+		mirrorFocus2 = testBeam.rightOfFlat.focusPoint();
+		mirrorFocus2.draw(0.1, "rgb(0,255,0)");
+		
+	}
+	else if (bDivergerBelowCube==false)
+	{
+		// diverger at flat
+		// continue test beam to bottom of cube
+		colorTestRed();
+		testBeam.lowerCube = laser.incube.copy();
+		testBeam.lowerCube.advance();
+		p = testBeam.lowerCube.intersect(splitter.bottom);
+		if (p!=null) error("",p);
+		testBeam.lowerCube.draw();
+		
+		
+		//
+		// FLAT
+		//
+		
+		
+		if (dragging !== null && dragging === drag_handles['flat'])
+		{
+			// flat is being dragged!
+			flat.center = drag_handles['flat'].flatCenter; // restore saved value
+			flat.p1 = flat.center.copy();
+			flat.p2 = flat.center.copy();
+			flat.p1.x -= flatwidth*.3536; // sqrt(2)/4  or .707/2
+			flat.p1.y -= flatwidth*.3536;    
+			flat.p2.x += flatwidth*.3536;    
+			flat.p2.y += flatwidth*.3536;
+			flat.p1.rotate(flat.center, splitter.angle);
+			flat.p2.rotate(flat.center, splitter.angle);        
+		}
+		else
+		{
+			
+			flat.p1.x = testBeam.lowerCube.lines[0].p2.x - 0.2; // .2mm left of where laser comes out of bottom of cube
+			flat.p1.y = testBeam.lowerCube.lines[0].p2.y + 0.2; // .2mm below where laser comes out of bottom of cube
+			if (splitter.angle - laser_rotation < 0)
+			{
+				var adjust_y = Math.sin(laser_rotation-splitter.angle)*splitter.br.lengthTo(testBeam.lowerCube.lines[0].p2); // move down a bit more so beam misses bot right corner of splitter         
+				flat.p1.y += adjust_y;
+				flat.p1.x -= adjust_y*Math.sin(laser_rotation-splitter.angle);
+			}
+
+			flat.p2 = flat.p1.copy();
+			flat.p2.x += flatwidth*.7071; // assume 45 degrees initially
+			flat.p2.y += flatwidth*.7071;
+			flat.center = flat.p1.average(flat.p2);
+			flat.center.rotate(flat.p1, splitter.angle);
+			flat.p2.rotate(flat.p1, splitter.angle);
+			drag_handles['flat'].defaultCenter = flat.center.copy();
+
+			
+		}
+		ctx.strokeStyle="rgb(255,255,255)";
+		
+		flat.handle = new coord(flat.center.x-1.5, flat.center.y+1.5);
+		flat.handle.rotate(flat.center, splitter.angle);
+		drag_handles['flat'].place(flat.handle.x, flat.handle.y);
+		drag_handles['flat'].draw();
+		drag_handles['flat'].flatCenter = flat.center; // save this for later
+
+		p = flat.intersection(splitter.bottom);
+		if (flat.isIntersectedPointWithin(p))
+			error("flat hits splitter",p);
+		
+		flat.draw();
+		
+		//
+		// test beam leaves cube
+		//
+		
+		colorTestRed();
+		testBeam.belowCube = testBeam.lowerCube.refract(splitter.bottom,IOR, 1);
+		p = testBeam.belowCube.intersect(flat);
+		if (p!=null) error("",p);
+		testBeam.belowCube.draw();
+		
+		//
+		// test beam reflects off flat
+		//
+		
+		testBeam.leftOfDiverger = testBeam.belowCube.reflect(flat);
+		testBeam.leftOfDiverger.intersect(diverger);
+		testBeam.leftOfDiverger.draw();
+		
+		// 
+		// now position and draw diverger    
+		// 
+		
+		diverger.len=min(6,diverger.fl);
+		diverger.center = new coord(diverger.p1.x, avg(testBeam.leftOfDiverger.lines[0].p2.y, testBeam.leftOfDiverger.lines[1].p2.y));
+		diverger.p1 = diverger.center.copy();
+		diverger.p2 = diverger.center.copy();
+		diverger.p1.y -= diverger.len/2;
+		diverger.p2.y += diverger.len/2;
+		ctx.strokeStyle="rgb(255,255,255)";    
+		diverger.draw();
+		
+		ctx.beginPath();
+		var rad_center_offset = diverger.len*1.9; // also a fudge
+		var angle = .25; // radians - this is a fudge
+		moveto(diverger.p1.x, diverger.p1.y);
+		arc(diverger.center.x-rad_center_offset, diverger.center.y, diverger.len*2, -angle,angle,false);
+		arc(diverger.center.x+rad_center_offset, diverger.center.y, diverger.len*2, 
+			 Math.PI-angle,Math.PI+angle,false);
+		lineto(diverger.p1.x, diverger.p1.y);
+		
+		ctx.stroke();  
+		
+		drag_handles['diverger'].place(diverger.center.x, diverger.center.y - diverger.len*.75);
+		drag_handles['diverger'].draw();
+
+
+		if (pointInsideSplitter(diverger.p1))
+			error("diverger inside splitter",diverger.p1);
+		if (pointInsideSplitter(diverger.p2))
+			error("diverger inside splitter",diverger.p2);
+
+		p = diverger.intersection(flat);
+		if (flat.isIntersectedPointWithin(p) && diverger.isIntersectedPointWithin(p))
+			error("diverger hits flat",p);
+		
+		//
+		// focus testbeam
+		//
+		
+		colorTestRed();
+		var vector = testBeam.leftOfDiverger.lines[0].getVector();
+		vector.normalize();
+		vector.scale(diverger.fl);
+		testBeam.focus = diverger.center.copy();
+		testBeam.focus.add(vector);
+		
+		testBeam.afterDiverger = testBeam.leftOfDiverger.copy();
+		testBeam.afterDiverger.advance();
+		testBeam.afterDiverger.setP2(testBeam.focus);
+		testBeam.afterDiverger.intersect(clip_line);
+		testBeam.afterDiverger.draw();		
+		
+		//
+		// start refbeam off splitter
+		//
+		colorRefBlue();
+		refbeam.cubeRight = laser.incube.reflect(splitter.diagonal);
+		p = refbeam.cubeRight.intersect(splitter.right);
+		if (p!=null) error("",p);
+		refbeam.cubeRight.draw();
+		
+		//
+		// refract refbeam out of splitter
+		//
+		
+		refbeam.rightOfCube = refbeam.cubeRight.refract(splitter.right, IOR, 1);
+		refbeam.rightOfCube.intersect(clip_line);
+		refbeam.rightOfCube.draw();
+		
+		//
+		// returning reference beam - draw right to left
+		//
+		
+		colorRefBlue();
+		refbeam.toDiverger = testBeam.leftOfDiverger.copy();
+		refbeam.toDiverger.intersect(clip_line);
+		refbeam.toDiverger.swap();
+		refbeam.toDiverger.intersect(diverger);
+		refbeam.toDiverger.shifty(-shear);
+		refbeam.toDiverger.draw();
+				
+		//
+		// calculate focus point (not affected by shear)
+		//
+		
+		vector.rotate180();
+		vector.normalize();
+		vector.scale(diverger.fl);
+		var testBeamRightOfSplitterAngle = vector.copy(); // save for later
+		refbeam.focus_before_refraction = diverger.center.copy();
+		refbeam.focus_before_refraction.add(vector);
+		
+		//
+		// ref beam after diverger to flat
+		//
+		
+		refbeam.afterDiverger = refbeam.toDiverger.copy();
+		refbeam.afterDiverger.advance();
+		refbeam.afterDiverger.setP2(refbeam.focus_before_refraction);
+		p = refbeam.afterDiverger.intersect(flat);
+		if (p != null)
+			error("returning reference beam missing flat",p);
+		refbeam.afterDiverger.draw();
+		
+		// ref beam above flat, below cube
+		
+		refbeam.aboveFlat = refbeam.afterDiverger.reflect(flat);
+		p = refbeam.aboveFlat.intersect(splitter.bottom);
+		if (p!=null) error("",p);
+		refbeam.aboveFlat.draw();
+
+		//
+		// refbeam in cube
+		//
+		
+		// lower cube
+		splitter.bottom.swap(); // refract function expects the points swapped - don't remember why
+		refbeam.lowerCube = refbeam.aboveFlat.refract(splitter.bottom, 1, IOR);
+		p = refbeam.lowerCube.intersect(splitter.diagonal);
+		if (p!=null)
+			error("",p);
+		refbeam.lowerCube.draw();
+		
+		// reflect refbeam off splitter diagonal
+		refbeam.leftCube = refbeam.lowerCube.reflect(splitter.diagonal);
+		p = refbeam.leftCube.intersect(splitter.left);
+		if (p!=null) error("",p);
+		refbeam.leftCube.draw();
+		
+		//
+		// rebeam exits cube Left
+		//
+		
+		refbeam.leftOfCube = refbeam.leftCube.refract(splitter.left, IOR, 1);
+		// extend to left edge of drawing
+		var clip_line_left = new line(new coord(2,0), new coord(2,1));		
+		refbeam.leftOfCube.intersect(clip_line_left);
+		refbeam.leftOfCube.draw();
+		
+		//
+		// testbeam returning from mirror
+		//
+		
+		colorTestRed();
+		
+		//
+		// determine refbeam focus point
+		//
+		
+		// we start with focus point of "ref beam above flat" - where those lines intersect if they didn't reflect off
+		// flat or if there was no cube
+		
+		// reflect that focus point across splitter diagonal
+
+		testBeam.focus_before_refraction = reflectPointAcrossLine(splitter.diagonal, refbeam.aboveFlat.focusPoint());
+		// move by beam shear
+		testBeam.focus_before_refraction.x -= shear;
+		// also move by defocus
+		testBeam.focus_before_refraction.x +=defocus_mm; // positive defocus means outside focus;
+		
+		// create beam with all 4 points at focus (before refraction) but soon will *end* at focus
+		testBeam.rightOfCube = new beam(
+			new line(testBeam.focus_before_refraction.copy(), testBeam.focus_before_refraction.copy()),
+			new line(testBeam.focus_before_refraction.copy(), testBeam.focus_before_refraction.copy()));
+		
+		// adjust beam start to represent f/# of mirror being tested
+		testBeam.fratio = fnum*2;
+		testBeam.rightOfCube.lines[0].p1.x += 4*testBeam.fratio;
+		testBeam.rightOfCube.lines[1].p1.x += 4*testBeam.fratio;
+		testBeam.rightOfCube.lines[0].p1.y += 2;
+		testBeam.rightOfCube.lines[1].p1.y -= 2;
+		
+		// rotate by same amount as laser
+		for(i=0;i<2;i++)
+			testBeam.rightOfCube.lines[i].p1.rotate(testBeam.rightOfCube.lines[i].p2, -laser_rotation + splitter.angle*2);
+
+		// now intersect these beams with right of cube and clip_line
+		
+		testBeam.rightOfCube.swap();
+		testBeam.rightOfCube.intersect(clip_line);
+		testBeam.rightOfCube.swap();
+		p = testBeam.rightOfCube.intersect(splitter.right);
+		if (p!=null) error("",p);
+		testBeam.rightOfCube.draw();
+		
+		//
+		// refract test beam into cube
+		//
+		
+		splitter.right.swap();
+		testBeam.cubeRight = testBeam.rightOfCube.refract(splitter.right, 1, IOR);
+		p = testBeam.cubeRight.intersect(splitter.left);
+		if (p!=null) error("",p);
+		testBeam.cubeRight.draw();
+		
+		//
+		// refract test beam out of cube
+		//
+		
+		testBeam.LeftOfCube = testBeam.cubeRight.refract(splitter.left, IOR, 1);
+		testBeam.LeftOfCube.intersect(clip_line_left);
+		testBeam.LeftOfCube.draw();
+
+		mirrorFocus2 = testBeam.rightOfCube.focusPoint();
+		mirrorFocus2.draw(0.1, "rgb(0,255,0)");
+		
+	}
+	else
+	{
+		// diverger is just below splitter
+
+		// continue test beam to bottom of cube
+		colorTestRed();
+		testBeam.lowerCube = laser.incube.copy();
+		testBeam.lowerCube.advance();
+		p = testBeam.lowerCube.intersect(splitter.bottom);
+		if (p!=null) error("",p);
+		testBeam.lowerCube.draw();		
+		
+		//
+		// extend testBeam to diverger
+		//
+		
+		colorTestRed();
+		testBeam.belowCube = testBeam.lowerCube.refract(splitter.bottom,IOR, 1);
+		testBeam.belowCube.intersect(diverger);
+		// testBeam.belowCube.draw();  don't draw these lines until after diverger
+
+		// 
+		// now position and draw diverger    
+		// 
+		
+		diverger.len=min(6,diverger.fl);
+		diverger.center = new coord(avg(testBeam.belowCube.lines[0].p2.x, testBeam.belowCube.lines[1].p2.x), diverger.p1.y);
+		diverger.p1 = diverger.center.copy();
+		diverger.p2 = diverger.center.copy();
+		diverger.p1.x -= diverger.len/2;
+		diverger.p2.x += diverger.len/2;
+		ctx.strokeStyle="rgb(255,255,255)";
+		diverger.draw();
+		
+		ctx.beginPath();
+		var rad_center_offset = diverger.len*1.9; // also a fudge
+		var angle = .25; // radians - this is a fudge
+		moveto(diverger.p2.x, diverger.p2.y);
+		arc(diverger.center.x, diverger.center.y-rad_center_offset, diverger.len*2, Math.PI/2-angle,Math.PI/2+angle,false);
+		arc(diverger.center.x, diverger.center.y+rad_center_offset, diverger.len*2, 
+			 Math.PI*1.5-angle,Math.PI*1.5+angle,false);
+		lineto(diverger.p2.x, diverger.p2.y);
+		
+		ctx.stroke();  
+		
+		drag_handles['diverger'].place(diverger.center.x - diverger.len*.75, diverger.center.y );
+		drag_handles['diverger'].draw();
+
+
+		if (pointInsideSplitter(diverger.p1))
+			error("diverger inside splitter",diverger.p1);
+		if (pointInsideSplitter(diverger.p2))
+			error("diverger inside splitter",diverger.p2);
+		
+		
+		//
+		// redraw test beam up to diverger now that we have drawn the diverger
+		//
+		
+		colorTestRed();
+		p = testBeam.belowCube.intersect(diverger); // test intersection now that diverger is positioned
+		if (p!=null) error("",p);
+		testBeam.belowCube.draw();		
+		
+		//
+		// POSITION AND DRAW FLAT
+		//
+		
+		if (dragging !== null && dragging === drag_handles['flat'])
+		{
+			// flat is being dragged!
+			flat.center = drag_handles['flat'].flatCenter; // restore saved value
+			flat.p1 = flat.center.copy();
+			flat.p2 = flat.center.copy();
+			flat.p1.x -= flatwidth*.3536; // sqrt(2)/4  or .707/2
+			flat.p1.y -= flatwidth*.3536;    
+			flat.p2.x += flatwidth*.3536;    
+			flat.p2.y += flatwidth*.3536;
+			flat.p1.rotate(flat.center, splitter.angle);
+			flat.p2.rotate(flat.center, splitter.angle);        
+		}
+		else
+		{
+			
+			flat.p1.x = testBeam.belowCube.lines[0].p2.x - 0.5; // .5mm left of where laser comes out of bottom of splitter
+			flat.p1.y = testBeam.belowCube.lines[0].p2.y + 1; // 1mm below where laser comes out of bottom of splitter
+			if (splitter.angle - laser_rotation < 0)
+			{
+				var adjust_y = Math.sin(laser_rotation-splitter.angle)*splitter.br.lengthTo(testBeam.lowerCube.lines[0].p2); // move down a bit more so beam misses bot right corner of splitter         
+				flat.p1.y += adjust_y;
+				flat.p1.x -= adjust_y*Math.sin(laser_rotation-splitter.angle);
+			}
+
+			flat.p2 = flat.p1.copy();
+			flat.p2.x += flatwidth*.7071; // assume 45 degrees initially
+			flat.p2.y += flatwidth*.7071;
+			flat.center = flat.p1.average(flat.p2);
+			flat.center.rotate(flat.p1, splitter.angle);
+			flat.p2.rotate(flat.p1, splitter.angle);
+			drag_handles['flat'].defaultCenter = flat.center.copy();
+
+			
+		}
+		ctx.strokeStyle="rgb(255,255,255)";
+		
+		flat.handle = new coord(flat.center.x-1.5, flat.center.y+1.5);
+		flat.handle.rotate(flat.center, splitter.angle);
+		drag_handles['flat'].place(flat.handle.x, flat.handle.y);
+		drag_handles['flat'].draw();
+		drag_handles['flat'].flatCenter = flat.center; // save this for later
+
+		p = flat.intersection(splitter.bottom);
+		if (flat.isIntersectedPointWithin(p))
+			error("flat hits splitter",p);
+		
+		flat.draw();
+		
+		//
+		// refbeam to flat
+		//
+		
+		// first find focal point if flat wasn't there
+		
+		colorTestRed();
+		var vector = testBeam.belowCube.lines[0].getVector();
+		vector.normalize();
+		vector.scale(diverger.fl);
+		testBeam.focus = diverger.center.copy();
+		testBeam.focus.add(vector);
+		//testBeam.focus.draw(.3,"rgb(255,255,255)");
+		
+		testBeam.afterDiverger = testBeam.belowCube.copy();
+		testBeam.afterDiverger.advance();
+		testBeam.afterDiverger.setP2(testBeam.focus);
+		
+		p = testBeam.afterDiverger.intersect(flat);
+		if (p!=null) error("",p);
+		testBeam.afterDiverger.draw();
+		
+		//testBeam.afterDiverger.lines[0].p2.draw(.3,"rgb(255,255,255)");
+		//testBeam.afterDiverger.lines[1].p2.draw(.3,"rgb(255,0,255)");
+		
+		
+		//
+		// reflect test beam off flat
+		//
+		
+		//flat.swap();
+		testBeam.afterflat = testBeam.afterDiverger.reflect(flat);
+		testBeam.afterflat.intersect(clip_line);
+		testBeam.afterflat.draw();
+
+		p = diverger.intersection(flat);
+		if (flat.isIntersectedPointWithin(p) && diverger.isIntersectedPointWithin(p))
+			error("diverger hits flat",p);
+		
+		testBeam.focus = testBeam.afterflat.focusPoint(); // need this later to calculate yellow dot
+		
+		//
+		// start refbeam off splitter
+		//
+		colorRefBlue();
+		refbeam.cubeRight = laser.incube.reflect(splitter.diagonal);
+		p = refbeam.cubeRight.intersect(splitter.right);
+		if (p!=null) error("",p);
+		refbeam.cubeRight.draw();
+		
+
+		
+		//
+		// refract refbeam out of splitter
+		//
+		
+		refbeam.rightOfCube = refbeam.cubeRight.refract(splitter.right, IOR, 1);
+		refbeam.rightOfCube.intersect(clip_line);
+		refbeam.rightOfCube.draw();
+		
+		//
+		// returning ref beam
+		//
+		
+		//
+		// returning ref beam below diverger
+		//
+		
+		refbeam.belowDiverger = testBeam.belowCube.copy(); // start with test beam above diverger then extend down to flat
+		refbeam.belowDiverger.shiftx(-shear);
+		p = refbeam.belowDiverger.intersect(flat);
+		if (p != null)error("",p);
+		
+		refbeam.belowDiverger.swap();
+		refbeam.belowDiverger.intersect(diverger);
+		refbeam.belowDiverger.draw();
+		
+		//
+		// reflect right off FLAT
+		//
+		
+		refbeam.belowDiverger.swap(); // temporarily have this pointing downwards
+		refbeam.rightOfFlat = refbeam.belowDiverger.reflect(flat);
+		refbeam.rightOfFlat.intersect(clip_line);
+		refbeam.rightOfFlat.swap();
+		refbeam.rightOfFlat.draw();
+		refbeam.belowDiverger.swap(); // restore
+		
+		//
+		// ref beam above diverger
+		//
+		
+		//
+		// calculate focus point (not affected by shear)
+		//
+		
+		vector.rotate180();
+		vector.normalize();
+		vector.scale(diverger.fl);
+		var testBeamRightOfSplitterAngle = vector.copy(); // save for later
+		refbeam.focus_before_refraction = diverger.center.copy();
+		refbeam.focus_before_refraction.add(vector);
+		
+		//
+		// refbeam above diverger
+		//
+		
+		refbeam.afterDiverger = refbeam.belowDiverger.copy();
+		refbeam.afterDiverger.advance();
+		refbeam.afterDiverger.setP2(refbeam.focus_before_refraction);
+		p = refbeam.afterDiverger.intersect(splitter.bottom);
+		if (p != null)
+			error("returning reference beam missing splitter",p);
+		refbeam.afterDiverger.draw();
+		
+		//
+		// refract refbeam into splitter bottom
+		//
+
+		splitter.bottom.swap();
+		refbeam.lowerCube = refbeam.afterDiverger.refract(splitter.bottom, 1, IOR);
+		p = refbeam.lowerCube.intersect(splitter.diagonal);
+		if (p != null) error("",p);
+		refbeam.lowerCube.draw();
+		
+		//
+		// reflect refbeam off splitter diagonal
+		//
+		
+		refbeam.leftCube = refbeam.lowerCube.reflect(splitter.diagonal);
+		p = refbeam.leftCube.intersect(splitter.left);
+		if (p != null) error("",p);
+		refbeam.leftCube.draw();
+		
+		//
+		// refract refbeam to the left out of cube
+		//
+		
+		var clip_line_left = new line(new coord(2,0), new coord(2,1));
+		refbeam.leftOfCube = refbeam.leftCube.refract(splitter.left, IOR, 1);
+		refbeam.leftOfCube.intersect(clip_line_left);
+		refbeam.leftOfCube.draw();
+
+		//
+		// testbeam returning from mirror
+		//
+		
+		colorTestRed();
+		
+		//
+		// determine refbeam focus point
+		//
+		
+		// we start with focus point of "ref beam after (above) diverger" - where those lines intersect if there was no cube
+		
+		// reflect that focus point across splitter diagonal
+
+		testBeam.focus_before_refraction = reflectPointAcrossLine(splitter.diagonal, refbeam.afterDiverger.focusPoint());
+		
+		// move by beam shear
+		testBeam.focus_before_refraction.x -= shear;
+		// also move by defocus
+		testBeam.focus_before_refraction.x +=defocus_mm; // positive defocus means outside focus;
+
+		//testBeam.focus_before_refraction.draw(.2,"rgb(255,255,255)");
+		testBeam.rightOfCube = new beam(
+			new line(testBeam.focus_before_refraction.copy(), testBeam.focus_before_refraction.copy()),
+			new line(testBeam.focus_before_refraction.copy(), testBeam.focus_before_refraction.copy()));
+		
+		// adjust beam start to represent f/# of mirror being tested
+		testBeam.fratio = fnum*2;
+		testBeam.rightOfCube.lines[0].p1.x += 4*testBeam.fratio;
+		testBeam.rightOfCube.lines[1].p1.x += 4*testBeam.fratio;
+		testBeam.rightOfCube.lines[0].p1.y += 2;
+		testBeam.rightOfCube.lines[1].p1.y -= 2;
+		
+		// rotate by same amount as laser
+		for(i=0;i<2;i++)
+			testBeam.rightOfCube.lines[i].p1.rotate(testBeam.rightOfCube.lines[i].p2, -laser_rotation + splitter.angle*2);
+
+		// now intersect these beams with right of cube and clip_line
+		
+		testBeam.rightOfCube.swap();
+		testBeam.rightOfCube.intersect(clip_line);
+		testBeam.rightOfCube.swap();
+		p = testBeam.rightOfCube.intersect(splitter.right);
+		if (p!=null) error("",p);
+		testBeam.rightOfCube.draw();
+		
+		//
+		// refract test beam into cube
+		//
+		
+		splitter.right.swap();
+		testBeam.cubeRight = testBeam.rightOfCube.refract(splitter.right, 1, IOR);
+		p = testBeam.cubeRight.intersect(splitter.left);
+		if (p!=null) error("",p);
+		testBeam.cubeRight.draw();
+		
+		//
+		// refract test beam out of cube
+		//
+		
+		testBeam.LeftOfCube = testBeam.cubeRight.refract(splitter.left, IOR, 1);
+		testBeam.LeftOfCube.intersect(clip_line_left);
+		testBeam.LeftOfCube.draw();
+
+		mirrorFocus2 = testBeam.rightOfCube.focusPoint();
+		mirrorFocus2.draw(0.1, "rgb(0,255,0)"); // green dot
+		
+
+	}
 
     
-    refbeam.convergingTop.draw();
-    refbeam.convergingBot.draw();
-
-    // refract refbeam out of left side of cube
-
-    refbeam.LeftOfCubeA = refract(refbeam.convergingTop, splitter.left, IOR, 1);
-    refbeam.LeftOfCubeB = refract(refbeam.convergingBot, splitter.left, IOR, 1);
     
-    // extend to 0
-    var clip_line_left = new line(new coord(2,0), new coord(2,1));
-    refbeam.LeftOfCubeA.p2 = refbeam.LeftOfCubeA.intersection(clip_line_left);
-    refbeam.LeftOfCubeB.p2 = refbeam.LeftOfCubeB.intersection(clip_line_left);
-
-    refbeam.LeftOfCubeA.draw();
-    refbeam.LeftOfCubeB.draw();    
-
-
-
-
-    
-    // refect focus point across splitter diagonal to be testBeam focus
-    colorTestRed();
-
-    testBeam.focus_before_refraction = reflectPointAcrossLine(splitter.diagonal, refbeam.focus_before_refraction);
-    
-    // move by beam shear
-    testBeam.focus_before_refraction.x -= shear;
-    
-    // also move by defocus
-    testBeam.focus_before_refraction.y +=defocus_mm; // positive defocus means outside focus;
-    
-    //
-    // testBeam.justBelowCube
-    //
-    
-    //testBeam.focus_before_refraction.draw();
-        
-        
-    // create 2 lines that both end at the focus (just throw in anything for start)
-    testBeam.justBelowCubeA = new line(testBeam.focus_before_refraction.copy(),
-                                       testBeam.focus_before_refraction.copy());
-    testBeam.justBelowCubeB = new line(testBeam.focus_before_refraction.copy(),
-                                       testBeam.focus_before_refraction.copy());
-
-    // make the start of the beam exactly .5mm right and left and fratio below focus point
-    // 0.9 edit - made this all 4X longer as when using f/4 and diverger 13mm fl the bottom of this cone
-    // below - the wider end at the bottom was exactly at the bottom of the cube and intersecting
-    // with the cube got an error (missed cube) and returned zero
-    testBeam.fratio = fnum*2;
-    testBeam.justBelowCubeA.p1.x += 2;
-    testBeam.justBelowCubeB.p1.x -= 2;
-    testBeam.justBelowCubeA.p1.y += 4*testBeam.fratio;
-    testBeam.justBelowCubeB.p1.y += 4*testBeam.fratio;
-    
-    // rotate this by the amount that the laser beam is rotated as well
-    testBeam.justBelowCubeA.p1.rotate(testBeam.justBelowCubeA.p2, laser_rotation);
-    testBeam.justBelowCubeB.p1.rotate(testBeam.justBelowCubeB.p2, laser_rotation);
-
-    
-    // now intersect these beams with both the cube bottom and the flat.  It doesn't matter if the
-    // focus is inside or outside the cube.  Before or after the diagonal.  The rest will just work!
-    
-    p=testBeam.justBelowCubeA.intersection(splitter.bottom);
-    if (splitter.bottom.isIntersectedPointWithin(p) == false)
-        error("returning test beam misses bottom of splitter",p);
-    testBeam.justBelowCubeA.p2 = p;
-    
-    p=testBeam.justBelowCubeB.intersection(splitter.bottom);
-    if (splitter.bottom.isIntersectedPointWithin(p) == false)
-        error("returning test beam misses bottom of splitter",p);
-    testBeam.justBelowCubeB.p2 = p;
-
-    p=testBeam.justBelowCubeA.intersection(flat);
-    if (flat.isIntersectedPointWithin(p) == false)
-        error("returning test beam misses flat",p);
-    testBeam.justBelowCubeA.p1 = p;
-
-    p=testBeam.justBelowCubeB.intersection(flat);
-    if (flat.isIntersectedPointWithin(p) == false)
-        error("returning test beam misses flat",p);
-    testBeam.justBelowCubeB.p1 = p;
-
-
-    testBeam.justBelowCubeA.draw();
-    testBeam.justBelowCubeB.draw();
-    
-    // refract both beams into the cube.  Intersect them with diagonal
-    
-    splitter.bottom.swap();
-    testBeam.lowerCubeA = refract(testBeam.justBelowCubeA, splitter.bottom, 1, IOR);
-    testBeam.lowerCubeB = refract(testBeam.justBelowCubeB, splitter.bottom, 1, IOR);
-    
-    // extend to diagonal
-    p=testBeam.lowerCubeA.intersection(splitter.diagonal);
-    if (splitter.diagonal.isIntersectedPointWithin(p) == false)
-        error("returning test beam misses diagonal",p);
-    testBeam.lowerCubeA.p2=p;
-
-    p=testBeam.lowerCubeB.intersection(splitter.diagonal);
-    if (splitter.diagonal.isIntersectedPointWithin(p) == false)
-        error("returning test beam misses diagonal",p);
-    testBeam.lowerCubeB.p2=p;
-
-    testBeam.lowerCubeA.draw();
-    testBeam.lowerCubeB.draw();
-    
-    // reflect off diagonal
-    
-    testBeam.leftCubeA = reflect(testBeam.lowerCubeA, splitter.diagonal);
-    testBeam.leftCubeB = reflect(testBeam.lowerCubeB, splitter.diagonal);
-    
-    // extend to left edge of cube
-    p = testBeam.leftCubeA.intersection(splitter.left);
-    if (splitter.left.isIntersectedPointWithin(p) == false)
-        error("returning test beam doesn't fully exit rear of splitter (nasty interior reflection will likely occur)",p);
-    testBeam.leftCubeA.p2 = p;
-    
-    p = testBeam.leftCubeB.intersection(splitter.left);
-    if (splitter.left.isIntersectedPointWithin(p) == false)
-        error("returning test beam doesn't fully exit rear of splitter (nasty interior reflection will likely occur)",p);
-    testBeam.leftCubeB.p2 = p;
-
-    testBeam.leftCubeA.draw();
-    testBeam.leftCubeB.draw();
-    
-    // refract out of cube
-    testBeam.LeftOfCubeA = refract(testBeam.leftCubeA, splitter.left, IOR, 1);
-    testBeam.LeftOfCubeB = refract(testBeam.leftCubeB, splitter.left, IOR, 1);
-    
-    // extend to 0
-    
-    
- 
-    testBeam.LeftOfCubeA.p2 = testBeam.LeftOfCubeA.intersection(clip_line_left);
-    testBeam.LeftOfCubeB.p2 = testBeam.LeftOfCubeB.intersection(clip_line_left);
-
-    testBeam.LeftOfCubeA.draw();
-    testBeam.LeftOfCubeB.draw();
-    //testBeam.leftCubeB.p2 = testBeam.leftCubeB.intersection(clip_line_left);
-    
-    
-    // reflect test beam right of flat
-    testBeam.justBelowCubeA.swap();
-    testBeam.rightOfFlatA = reflect(testBeam.justBelowCubeA, flat);
-    testBeam.justBelowCubeB.swap();
-    testBeam.rightOfFlatB = reflect(testBeam.justBelowCubeB, flat);
-    
-    // extend to right clip
-    testBeam.rightOfFlatA.p2 = testBeam.rightOfFlatA.intersection(clip_line);
-    testBeam.rightOfFlatB.p2 = testBeam.rightOfFlatB.intersection(clip_line);
-    
-    testBeam.rightOfFlatA.draw();
-    testBeam.rightOfFlatB.draw();
-    
-    // draw green dot at the intersection of these above 2 lines
-    var mirrorFocus2 = testBeam.rightOfFlatA.intersection(testBeam.rightOfFlatB);
-    mirrorFocus2.draw(0.1, "rgb(0,255,0)");
     
     // find average of the two mirror focus points to get CoC of mirror
-    var mirrorCoC = mirrorFocus1.average(mirrorFocus2);
+    var mirrorCoC = testBeam.focus.average(mirrorFocus2);
     mirrorCoC.draw(0.1, "rgb(255,255,0)");
     
     // cyan dot aka F3
-    var f3 = testBeam.LeftOfCubeA.intersection(testBeam.LeftOfCubeB);
+    var f3 = testBeam.LeftOfCube.focusPoint();
     if (bF3)
     {
         f3.draw(0.2, "rgb(0,0,255)");
@@ -1601,24 +2098,33 @@ function update()
         ctx.font = '40px sans';
     else
         ctx.font = '20px sans';
+	var x,y;
     ctx.fillStyle="rgb(255,255,255)";
-    var y = (refbeam.rightOfFlatA.p2.y + refbeam.rightOfDivergerBot.p2.y)/2;
+	if (bDivergerBelowCube)
+	{
+		x = refbeam.rightOfFlat.lines[0].p1.x;
+		y = (refbeam.rightOfFlat.lines[0].p1.y + refbeam.rightOfCube.lines[1].p2.y)/2;
+	}
+	else if (bDivergerAtCube)
+	{
+		x = refbeam.rightOfFlat.lines[0].p2.x;
+		y = (refbeam.rightOfFlat.lines[0].p2.y + refbeam.afterDiverger.lines[1].p1.y)/2;
+	}
+	else
+	{
+		x = refbeam.toDiverger.lines[0].p1.x;
+		y = (refbeam.toDiverger.lines[0].p2.y + refbeam.rightOfCube.lines[1].p1.y)/2;
+	}
+	
+	
     ctx.fillText('To F/'+fnum+' mirror->', 
-                          (refbeam.rightOfFlatA.p2.x-5) * units_per_mm,
+                          (x-5) * units_per_mm,
                           (y+.5) * units_per_mm );    
-    
-    
-    
-
-    
-    
-    //ctx.strokeStyle="rgb(0,0,255)";
-    //splitter.bottom.draw();
     
 }
 
 create_handles();
-fringes(50); // calls update()
+fringes(100); // calls update()
 
 </script>
 
