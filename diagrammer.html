@@ -942,7 +942,7 @@ function update()
     var t_can = document.getElementById('idCanvas');
     bLarge = document.getElementById('idLarge').checked;
     bF3 = document.getElementById('idF3').checked;
-	var bDivergerAtCube = !document.getElementById('idLowerDiverger').checked; // as opposed to at flat
+	var bDivergerAtCube = !document.getElementById('idLowerDiverger').checked; // right of cube
 	var bDivergerBelowCube = document.getElementById('idLowerDiverger2').checked;
 
     if (bLarge)
@@ -1000,23 +1000,31 @@ function update()
     var defocus_mm = defocus*8*lambda*(fnum*2)*(fnum*2);
     document.getElementById('idSpnDefocus').innerHTML = "("+defocus_mm.toFixed(2)+"mm)";
 	
-
-    if (bDivergerAtCube)
-		document.getElementById('green_formula').innerHTML="beam_separation_distance + diverger_focal_length behind diverger";
-	else
-		document.getElementById('green_formula').innerHTML="beam_separation_distance - diverger_focal_length in front of diverger";
-
-    if (bDivergerAtCube)
+if (bDivergerBelowCube)
+	{
+		// third way - diverger below cube and above flat
+		document.getElementById('yellow_formula').innerHTML="(no simple formula)";
+		document.getElementById('green_formula').innerHTML="(no simple formula)";
+	}
+    else if (bDivergerAtCube)
+	{
+		// original way - Dale version
 		document.getElementById('yellow_formula').innerHTML="beam_separation_distance/2 behind diverger";
-	else
+		document.getElementById('green_formula').innerHTML="beam_separation_distance + diverger_focal_length behind diverger";
+	}
+    else
+	{
+		// Second way - worst way - stupidest way - diverger right of flat
 		document.getElementById('yellow_formula').innerHTML="beam_separation_distance/2 in front of diverger";
+		document.getElementById('green_formula').innerHTML="beam_separation_distance - diverger_focal_length in front of diverger";
+	}
     
     canvas_width = t_can.clientWidth;
     canvas_height = t_can.clientHeight;
     c_size = min(canvas_width, canvas_height);
     
     splitter.unit = max(splitter.W,splitter.H);
-    mm_width_needed = splitter.unit*2.5 + splitterToDiverger;
+    mm_width_needed = max(splitter.unit,9)*2.5 + splitterToDiverger;
     
     units_per_mm = canvas_height/mm_width_needed;
     
@@ -1261,7 +1269,7 @@ function update()
 		// now position and draw diverger    
 		// 
 		
-		diverger.len=min(10,diverger.fl);
+		diverger.len=min(6,diverger.fl);
 		diverger.center = new coord(diverger.p1.x, avg(testBeam.toDiverger.lines[0].p2.y, testBeam.toDiverger.lines[1].p2.y));
 		diverger.p1 = diverger.center.copy();
 		diverger.p2 = diverger.center.copy();
@@ -1529,7 +1537,7 @@ function update()
 		// now position and draw diverger    
 		// 
 		
-		diverger.len=min(10,diverger.fl);
+		diverger.len=min(6,diverger.fl);
 		diverger.center = new coord(diverger.p1.x, avg(testBeam.leftOfDiverger.lines[0].p2.y, testBeam.leftOfDiverger.lines[1].p2.y));
 		diverger.p1 = diverger.center.copy();
 		diverger.p2 = diverger.center.copy();
@@ -1759,7 +1767,7 @@ function update()
 		// now position and draw diverger    
 		// 
 		
-		diverger.len=min(10,diverger.fl);
+		diverger.len=min(6,diverger.fl);
 		diverger.center = new coord(avg(testBeam.belowCube.lines[0].p2.x, testBeam.belowCube.lines[1].p2.x), diverger.p1.y);
 		diverger.p1 = diverger.center.copy();
 		diverger.p2 = diverger.center.copy();
@@ -1863,6 +1871,7 @@ function update()
 		vector.scale(diverger.fl);
 		testBeam.focus = diverger.center.copy();
 		testBeam.focus.add(vector);
+		//testBeam.focus.draw(.3,"rgb(255,255,255)");
 		
 		testBeam.afterDiverger = testBeam.belowCube.copy();
 		testBeam.afterDiverger.advance();
@@ -1889,6 +1898,8 @@ function update()
 		if (flat.isIntersectedPointWithin(p) && diverger.isIntersectedPointWithin(p))
 			error("diverger hits flat",p);
 		
+		testBeam.focus = testBeam.afterflat.focusPoint(); // need this later to calculate yellow dot
+		
 		//
 		// start refbeam off splitter
 		//
@@ -1897,6 +1908,8 @@ function update()
 		p = refbeam.cubeRight.intersect(splitter.right);
 		if (p!=null) error("",p);
 		refbeam.cubeRight.draw();
+		
+
 		
 		//
 		// refract refbeam out of splitter
@@ -2054,7 +2067,7 @@ function update()
 		testBeam.LeftOfCube.draw();
 
 		mirrorFocus2 = testBeam.rightOfCube.focusPoint();
-		mirrorFocus2.draw(0.1, "rgb(0,255,0)");
+		mirrorFocus2.draw(0.1, "rgb(0,255,0)"); // green dot
 		
 
 	}
@@ -2087,7 +2100,12 @@ function update()
         ctx.font = '20px sans';
 	var x,y;
     ctx.fillStyle="rgb(255,255,255)";
-	if (bDivergerAtCube)
+	if (bDivergerBelowCube)
+	{
+		x = refbeam.rightOfFlat.lines[0].p1.x;
+		y = (refbeam.rightOfFlat.lines[0].p1.y + refbeam.rightOfCube.lines[1].p2.y)/2;
+	}
+	else if (bDivergerAtCube)
 	{
 		x = refbeam.rightOfFlat.lines[0].p2.x;
 		y = (refbeam.rightOfFlat.lines[0].p2.y + refbeam.afterDiverger.lines[1].p1.y)/2;
