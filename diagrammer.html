@@ -17,6 +17,7 @@ version
 1.1   Added better error handling when beams miss a component
 1.2   Added class beam, refactored everything to use class beam, added ability for diverger to be in front of flat
 1.3   Added ability to have diverger just below splitter
+1.4   Added internal reflections
 -->
 <head>
 <title>
@@ -24,7 +25,7 @@ Bath Interferometer web tool/diagrammer/calculator
 </title>
 </head>
 <h2>Bath Interferometer web tool/diagrammer/calculator</h2>
-(ver 1.3)<br>
+(ver 1.4)<br>
 F ratio of mirror under test:
 <input type='text' size=3 value=3 onKeyUp=update() id='idFnum'>
 &nbsp;&nbsp;&nbsp;&nbsp;
@@ -99,6 +100,7 @@ Yellow dot is CoC of mirror being tested.  Measure from here to mirror surface a
 <span id='idSpnF3'></span><br>
 <input type=checkbox id=idLowerDiverger onchange="update()"><label for="idLowerDiverger">Move diverger to be in front of flat</label><br>
 <input type=checkbox id=idLowerDiverger2 onchange="update()"><label for="idLowerDiverger2">Move diverger to be just below splitter</label><br>
+<input type=checkbox id=idInternal onchange="update()" CHECKED><label for="idInternal">Show internal cube reflections (the double dot)</label><br>
 <input type=checkbox id=idAutoFlat onchange="update()" CHECKED><label for="idAutoFlat">Automatically position flat</label>
 
 <h2><font color='red'><span id=idError>Problems detected: none</span></font></h2>
@@ -821,10 +823,16 @@ var diverger=new line(new coord(0,0), new coord(0,0)); // also: center
 var flat=new line(new coord(0,0), new coord(0,0)); // also: center
 var coRefBeamBlue ="rgb(80,80,255)";
 var coTestBeamRed ="rgb(255,0,0)";
+var coInternalReflection ="rgb(255,255,0)";
 var bLarge;
 
 var offsetX;
 var offsetY;
+
+function colorInternalReflection()
+{
+    ctx.strokeStyle=coInternalReflection;
+}
 
 function colorRefBlue()
 {
@@ -944,8 +952,10 @@ function update()
     bLarge = document.getElementById('idLarge').checked;
     bF3 = document.getElementById('idF3').checked;
     bAutoFlat = document.getElementById('idAutoFlat').checked;
-	var bDivergerAtCube = !document.getElementById('idLowerDiverger').checked; // right of cube
-	var bDivergerBelowCube = document.getElementById('idLowerDiverger2').checked;
+    var bDivergerAtCube = !document.getElementById('idLowerDiverger').checked; // right of cube
+    var bDivergerBelowCube = document.getElementById('idLowerDiverger2').checked;
+    var bInternalReflection = document.getElementById('idInternal').checked;
+
 
     if (bLarge)
     {
@@ -1001,8 +1011,40 @@ function update()
     
     var defocus_mm = defocus*8*lambda*(fnum*2)*(fnum*2);
     document.getElementById('idSpnDefocus').innerHTML = "("+defocus_mm.toFixed(2)+"mm)";
-	
-if (bDivergerBelowCube)
+
+	var clip_line_left = new line(new coord(2,0), new coord(2,1));
+
+    function bottomReflect(beam)
+    {
+        // this function is used only for the yellow internal reflections (the double dot)
+        colorInternalReflection();
+		up_off_bottom = beam.reflect(splitter.bottom);
+        var p = up_off_bottom.intersect(splitter.diagonal);
+        up_off_bottom.draw();
+
+        off_diagonal = up_off_bottom.reflect(splitter.diagonal);
+        var p = off_diagonal.intersect(splitter.left);
+        off_diagonal.draw();
+
+        out_cube = off_diagonal.refract(splitter.left,IOR,1);
+        out_cube.intersect(clip_line_left);
+        out_cube.draw();
+
+    }
+    
+    function rightReflect(beam)
+    {
+        // this function is used only for the yellow internal reflections (the double dot)
+        colorInternalReflection();
+
+        off_cube = beam.reflect(splitter.right);
+        off_cube.intersect(splitter.left);
+        off_cube.draw();
+
+        // no need to draw the rest as it is identical from here on out with bottomReflect()
+    }
+
+    if (bDivergerBelowCube)
 	{
 		// third way - diverger below cube and above flat
 		document.getElementById('yellow_formula').innerHTML="diverger_to_cube_bottom_dist + beam_separation/2 left of cube right edge";
@@ -1174,6 +1216,12 @@ if (bDivergerBelowCube)
 			error("laser missing bottom of cube",p);
 		refbeam.lowercube.draw();
 		
+		if (bInternalReflection)
+		{
+		  bottomReflect(refbeam.lowercube);
+		  colorRefBlue(); // restore color
+		}
+
 		//
 		// time to calculate and draw flat because above information is useful for positioning the flat
 		//
@@ -1254,10 +1302,14 @@ if (bDivergerBelowCube)
 		p = testBeam.cubeRight.intersect(splitter.right);
 		if (p!=null)
 			error("test beam missing right side of cube",p);
-		
-		
 		testBeam.cubeRight.draw();
 		
+		if (bInternalReflection)
+		{
+		    rightReflect(testBeam.cubeRight);
+		    colorTestRed(); // restore color
+		}
+
 		//
 		// refract test beam out of cube to diverger
 		//
@@ -1371,7 +1423,6 @@ if (bDivergerBelowCube)
 		refbeam.leftOfCube = refbeam.incube.refract(splitter.left, IOR, 1);
 		
 		// extend to left edge of drawing
-		var clip_line_left = new line(new coord(2,0), new coord(2,1));
 		refbeam.leftOfCube.intersect(clip_line_left);
 		refbeam.leftOfCube.draw();
 		
@@ -1754,8 +1805,14 @@ if (bDivergerBelowCube)
 		testBeam.lowerCube.advance();
 		p = testBeam.lowerCube.intersect(splitter.bottom);
 		if (p!=null) error("",p);
-		testBeam.lowerCube.draw();		
-		
+		testBeam.lowerCube.draw();
+
+		if (bInternalReflection)
+		{
+		  bottomReflect(testBeam.lowerCube);
+		  colorTestRed(); // restore color
+		}
+
 		//
 		// extend testBeam to diverger
 		//
@@ -1911,8 +1968,13 @@ if (bDivergerBelowCube)
 		if (p!=null) error("",p);
 		refbeam.cubeRight.draw();
 		
+		if (bInternalReflection)
+		{
+		    rightReflect(refbeam.cubeRight);
+		    colorRefBlue(); // restore color
+		}
 
-		
+
 		//
 		// refract refbeam out of splitter
 		//
@@ -1998,7 +2060,7 @@ if (bDivergerBelowCube)
 		//
 		// refract refbeam to the left out of cube
 		//
-		
+
 		var clip_line_left = new line(new coord(2,0), new coord(2,1));
 		refbeam.leftOfCube = refbeam.leftCube.refract(splitter.left, IOR, 1);
 		refbeam.leftOfCube.intersect(clip_line_left);
